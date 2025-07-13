@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { MoveLeft } from "lucide-react";
 
 interface PlayerAssignment {
   name: string;
@@ -41,6 +42,7 @@ interface PlayerStats {
 }
 
 const Play = () => {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [players, setPlayers] = useState({
     player1: "",
     player2: "",
@@ -329,6 +331,12 @@ const Play = () => {
     const stats = calculatePlayerStats();
     setPlayerStats(stats);
     setShowWinners(true);
+    // Scroll to top after state update
+    setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }, 100);
     toast.success("Uzvarētāju statistika ir aprēķināta!");
   };
 
@@ -392,7 +400,10 @@ const Play = () => {
       <div>
         <Navbar />
       </div>
-      <div className="container mx-auto flex-1 tracking-tighter overflow-y-auto">
+      <div
+        ref={scrollRef}
+        className="container mx-auto flex-1 tracking-tighter overflow-y-auto"
+      >
         <div className="flex flex-col items-center pt-8 pb-8">
           <h1 className="text-2xl font-bold">Spēlēt</h1>
           <p className="text-sm text-center mt-2">
@@ -400,34 +411,38 @@ const Play = () => {
           </p>
 
           {!showResults ? (
-            <div className="flex flex-col items-center mt-4 gap-2">
+            <div className="flex flex-col items-center mt-4 gap-3">
               <Input
                 type="text"
                 placeholder="Spēlētājs 1"
                 value={players.player1}
                 onChange={(e) => handleInputChange("player1", e.target.value)}
+                className="w-80 h-12 text-xl text-center"
               />
               <Input
                 type="text"
                 placeholder="Spēlētājs 2"
                 value={players.player2}
                 onChange={(e) => handleInputChange("player2", e.target.value)}
+                className="w-80 h-12 text-xl text-center"
               />
               <Input
                 type="text"
                 placeholder="Spēlētājs 3"
                 value={players.player3}
                 onChange={(e) => handleInputChange("player3", e.target.value)}
+                className="w-80 h-12 text-xl text-center"
               />
               <Input
                 type="text"
                 placeholder="Spēlētājs 4"
                 value={players.player4}
                 onChange={(e) => handleInputChange("player4", e.target.value)}
+                className="w-80 h-12 text-xl text-center"
               />
               <Button
                 onClick={handleStartGame}
-                className="bg-black text-white hover:bg-gray-800"
+                className="bg-black text-white hover:bg-gray-800 h-12 px-8 text-lg mt-2"
               >
                 Sākt spēli
               </Button>
@@ -438,7 +453,7 @@ const Play = () => {
                 🏆 Uzvarētāju statistika
               </h2>
 
-              <div className="w-full space-y-4">
+              <div className="w-full space-y-4 px-2">
                 {playerStats.map((stat, index) => {
                   const ranking = getRankingDisplay(stat.position);
                   return (
@@ -498,10 +513,19 @@ const Play = () => {
               </div>
 
               <div className="flex gap-2">
-                <Button onClick={handleBackToGames} variant="outline">
+                <Button
+                  onClick={handleBackToGames}
+                  variant="outline"
+                  className="h-12 px-4 text-lg"
+                >
+                  <MoveLeft />
                   Atpakaļ uz spēlēm
                 </Button>
-                <Button onClick={handleReset} variant="outline">
+                <Button
+                  onClick={handleReset}
+                  variant="outline"
+                  className="h-12 px-4 text-lg"
+                >
                   Jauna spēle
                 </Button>
               </div>
@@ -573,6 +597,7 @@ const Play = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => toggleGameExpansion(index)}
+                          className="h-10 px-6 text-base"
                         >
                           {expandedGame === index
                             ? "Paslēpt rezultātu"
@@ -591,7 +616,7 @@ const Play = () => {
                               key={setIndex}
                               className="flex items-center justify-center gap-2"
                             >
-                              <span className="text-sm">
+                              <span className="text-sm font-medium">
                                 {setIndex + 1}. sets:
                               </span>
                               <Input
@@ -606,9 +631,9 @@ const Play = () => {
                                     e.target.value
                                   )
                                 }
-                                className="w-16 text-center"
+                                className="w-20 h-10 text-center text-lg font-semibold"
                               />
-                              <span>:</span>
+                              <span className="text-lg font-bold">:</span>
                               <Input
                                 type="number"
                                 placeholder="0"
@@ -621,14 +646,14 @@ const Play = () => {
                                     e.target.value
                                   )
                                 }
-                                className="w-16 text-center"
+                                className="w-20 h-10 text-center text-lg font-semibold"
                               />
                               {game.result!.sets.length > 1 && (
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   onClick={() => removeSet(index, setIndex)}
-                                  className="text-red-600"
+                                  className="text-red-600 hover:text-red-700 h-10 w-10"
                                 >
                                   ×
                                 </Button>
@@ -643,6 +668,7 @@ const Play = () => {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => addSet(index)}
+                                className="h-10 px-6 text-base"
                               >
                                 + Pievienot setu
                               </Button>
@@ -659,14 +685,18 @@ const Play = () => {
                 {allGamesHaveResults() && (
                   <Button
                     onClick={handleViewWinners}
-                    className="bg-green-600 text-white hover:bg-green-700"
+                    className="bg-green-600 text-white hover:bg-green-700 h-12 px-8 text-lg"
                   >
                     Apskatīt uzvarētājus
                   </Button>
                 )}
-                <Button onClick={handleReset} variant="outline">
+                {/* <Button
+                  onClick={handleReset}
+                  variant="outline"
+                  className="h-12 px-8 text-lg"
+                >
                   Jauna spēle
-                </Button>
+                </Button> */}
               </div>
             </div>
           )}
