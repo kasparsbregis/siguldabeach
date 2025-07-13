@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Volleyball } from "lucide-react";
+import { Medal, Volleyball } from "lucide-react";
 
 const Navbar = () => {
   return (
@@ -33,7 +33,7 @@ const Navbar = () => {
               </div>
             </Button>
           </Link>
-          {/* <Link href="/winners">
+          <Link href="/winners">
             <Button
               variant={"default"}
               size="sm"
@@ -45,7 +45,7 @@ const Navbar = () => {
                 Uzvarētāji
               </div>
             </Button>
-          </Link> */}
+          </Link>
         </div>
       </div>
     </div>

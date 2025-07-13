@@ -327,17 +327,49 @@ const Play = () => {
     }
   };
 
-  const handleViewWinners = () => {
+  const handleViewWinners = async () => {
     const stats = calculatePlayerStats();
     setPlayerStats(stats);
     setShowWinners(true);
+
+    // Save tournament results to database
+    try {
+      const playerNames = [
+        players.player1.trim(),
+        players.player2.trim(),
+        players.player3.trim(),
+        players.player4.trim(),
+      ];
+
+      const response = await fetch("/api/save-tournament", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          playerNames,
+          playerStats: stats,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Turnīrs ir saglabāts datubāzē!");
+      } else {
+        toast.error("Kļūda saglabājot turnīru!");
+      }
+    } catch (error) {
+      console.error("Error saving tournament:", error);
+      toast.error("Kļūda saglabājot turnīru!");
+    }
+
     // Scroll to top after state update
     setTimeout(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
       }
     }, 100);
-    toast.success("Uzvarētāju statistika ir aprēķināta!");
   };
 
   const handleStartGame = () => {
