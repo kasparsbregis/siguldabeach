@@ -100,7 +100,7 @@ export default function WinnersPage() {
               <p className="text-gray-600 text-lg">Turnīri nav atrasti.</p>
             </div>
           ) : (
-            <div className="space-y-8 mt-8 w-full max-w-6xl">
+            <div className="space-y-8 mt-8 w-full max-w-6xl px-2">
               {tournaments.map((tournament) => (
                 <div
                   key={tournament.id}
@@ -124,25 +124,25 @@ export default function WinnersPage() {
                     </div>
                   </div>
 
-                  <div className="p-4">
+                  <div className="p-2">
                     <div className="overflow-x-auto">
                       <table className="w-full table-auto">
                         <thead>
                           <tr className="border-b-2 border-gray-200">
                             <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                              Vieta
+                              Place
                             </th>
                             <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                              Spēlētājs
+                              Name
                             </th>
                             <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                              UzS
+                              GW
                             </th>
                             <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                              UzSe
+                              SW
                             </th>
                             <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                              Koeficients
+                              Coef.
                             </th>
                           </tr>
                         </thead>
