@@ -402,11 +402,11 @@ const Play = () => {
       </div>
       <div
         ref={scrollRef}
-        className="container mx-auto flex-1 tracking-tighter overflow-y-auto"
+        className="container mx-auto flex-1 tracking-tighter"
       >
         <div className="flex flex-col items-center pt-8 pb-8">
-          <h1 className="text-2xl font-bold">Spēlēt</h1>
-          <p className="text-sm text-center mt-2">
+          <h1 className="text-2xl font-bold md:text-5xl">Spēlēt</h1>
+          <p className="text-sm text-center mt-2 md:text-xl">
             Ievadiet 4 spēlētājus, izlozējiet spēļu secību un sāciet spēli!
           </p>
 
@@ -417,32 +417,32 @@ const Play = () => {
                 placeholder="Spēlētājs 1"
                 value={players.player1}
                 onChange={(e) => handleInputChange("player1", e.target.value)}
-                className="w-80 h-12 text-xl text-center"
+                className="w-80 h-12 text-xl md:text-3xl text-center md:w-2xl md:h-16"
               />
               <Input
                 type="text"
                 placeholder="Spēlētājs 2"
                 value={players.player2}
                 onChange={(e) => handleInputChange("player2", e.target.value)}
-                className="w-80 h-12 text-xl text-center"
+                className="w-80 h-12 text-xl md:text-3xl text-center md:w-2xl md:h-16"
               />
               <Input
                 type="text"
                 placeholder="Spēlētājs 3"
                 value={players.player3}
                 onChange={(e) => handleInputChange("player3", e.target.value)}
-                className="w-80 h-12 text-xl text-center"
+                className="w-80 h-12 text-xl md:text-3xl text-center md:w-2xl md:h-16"
               />
               <Input
                 type="text"
                 placeholder="Spēlētājs 4"
                 value={players.player4}
                 onChange={(e) => handleInputChange("player4", e.target.value)}
-                className="w-80 h-12 text-xl text-center"
+                className="w-80 h-12 text-xl md:text-3xl text-center md:w-2xl md:h-16"
               />
               <Button
                 onClick={handleStartGame}
-                className="bg-black text-white hover:bg-gray-800 h-12 px-8 text-lg mt-2"
+                className="bg-black text-white hover:bg-gray-800 w-80 h-12 px-8 text-lg mt-2 md:w-2xl md:h-16"
               >
                 Sākt spēli
               </Button>
@@ -531,7 +531,7 @@ const Play = () => {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center mt-4 gap-6 max-w-md w-full">
+            <div className="flex flex-col items-center mt-4 gap-6 max-w-md md:max-w-3xl w-full">
               <div className="w-full">
                 <h2 className="text-xl font-semibold text-center mb-4">
                   Spēlētāju secība:
@@ -561,13 +561,13 @@ const Play = () => {
                       key={index}
                       className="border rounded-lg p-4 bg-white shadow-sm"
                     >
-                      <h3 className="font-semibold text-lg mb-2 text-center">
+                      <h3 className="font-semibold text-lg md:text-3xl mb-2 text-center">
                         {game.gameNumber}. spēle
                       </h3>
                       <div className="flex items-center justify-center gap-4 mb-3">
                         <div className="text-center">
                           <div
-                            className={`font-medium ${
+                            className={`font-medium text-md md:text-3xl ${
                               game.result?.winningTeam === 1
                                 ? "text-green-600"
                                 : "text-blue-600"
@@ -581,7 +581,7 @@ const Play = () => {
                         </div>
                         <div className="text-center">
                           <div
-                            className={`font-medium ${
+                            className={`font-medium text-md md:text-3xl ${
                               game.result?.winningTeam === 2
                                 ? "text-green-600"
                                 : "text-red-600"

@@ -19,7 +19,6 @@ const Navbar = () => {
             />
           </Link>
         </div>
-        <span className="text-md font-bold">KINGOFTHEBEACH</span>
         <div className="flex gap-1 md:gap-2">
           <Link href="/play">
             <Button

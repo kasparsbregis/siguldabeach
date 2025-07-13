@@ -12,7 +12,7 @@ export default function Home() {
         <Navbar />
       </div>
       <div className="container mx-auto flex-1 tracking-tighter">
-        <div className="flex flex-col items-center justify-center h-full">
+        <div className="flex flex-col items-center mt-10">
           <Image
             src={"/kingofthebeach-logo.png"}
             alt="King of the Beach"
@@ -41,7 +41,7 @@ export default function Home() {
               asChild
             >
               <div>
-                <Volleyball size={32} className="md:w-5 md:h-5" />
+                <Volleyball />
                 Spēlēt
               </div>
             </Button>
