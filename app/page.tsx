@@ -3,6 +3,7 @@ import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
 import { Volleyball } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Home() {
   return (
@@ -12,15 +13,31 @@ export default function Home() {
       </div>
       <div className="container mx-auto flex-1 tracking-tighter">
         <div className="flex flex-col items-center justify-center h-full">
-          <h1 className="text-3xl font-bold text-center ">KINGOFTHEBEACH</h1>
-          <p className="text-lg text-center mt-4">
+          <Image
+            src={"/kingofthebeach-logo.png"}
+            alt="King of the Beach"
+            width={200}
+            height={200}
+            className="mb-4 w-[200px] h-[200px]"
+          />
+          <div className="flex flex-col items-center justify-center -space-y-4">
+            <h1 className="text-8xl font-bold text-center leading-none">
+              KING
+            </h1>
+            <h1 className="text-7xl font-bold text-center leading-none">
+              OF THE
+            </h1>
+            <h1 className="text-7xl font-bold text-center leading-none">
+              BEACH
+            </h1>
+          </div>
+          <p className="text-2xl text-center mt-4 w-[70%] md:w-full text-gray-700">
             Ievadiet 4 spēlētājus, izlozējiet spēļu secību un sāciet spēli!
           </p>
           <Link href="/play" className="mt-4">
             <Button
               variant={"default"}
-              size="sm"
-              className="md:h-10 md:px-4 md:py-2"
+              className="bg-black text-white hover:bg-gray-800 h-12 px-8 text-lg mt-2 w-48"
               asChild
             >
               <div>

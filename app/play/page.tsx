@@ -397,7 +397,7 @@ const Play = () => {
 
   return (
     <div className="h-[100vh] flex flex-col tracking-tight">
-      <div>
+      <div className="w-full border-b border-black/20">
         <Navbar />
       </div>
       <div

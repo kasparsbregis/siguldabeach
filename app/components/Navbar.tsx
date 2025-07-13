@@ -9,9 +9,9 @@ const Navbar = () => {
     <div className="w-full max-w-[800px] mx-auto px-4 py-2">
       <div className="flex justify-between items-center">
         <div>
-          <Link href="/">
+          <Link href="/" className="flex items-center justify-center gap-2">
             <Image
-              src={"/siguldabeach-logo.png"}
+              src={"/kingofthebeach-logo.png"}
               alt="Logo"
               width={45}
               height={45}
@@ -19,7 +19,7 @@ const Navbar = () => {
             />
           </Link>
         </div>
-
+        <span className="text-md font-bold">KINGOFTHEBEACH</span>
         <div className="flex gap-1 md:gap-2">
           <Link href="/play">
             <Button
