@@ -2,6 +2,13 @@ import { sql } from "@vercel/postgres";
 import fs from "fs";
 import path from "path";
 
+interface PlayerWithNumber {
+  id: number;
+  name: string;
+  player_number: number;
+  created_at?: string;
+}
+
 // Initialize database with schema
 export async function initializeDatabase() {
   try {
@@ -72,7 +79,7 @@ export async function createTournament(playerNames: string[]) {
     const tournament = tournamentResult.rows[0];
 
     // Create/get players and add to tournament
-    const players: any[] = [];
+    const players: PlayerWithNumber[] = [];
 
     for (let i = 0; i < playerNames.length; i++) {
       const name = playerNames[i];
@@ -81,7 +88,12 @@ export async function createTournament(playerNames: string[]) {
         INSERT INTO tournament_players (tournament_id, player_id, player_number)
         VALUES (${tournament.id}, ${player.id}, ${i + 1})
       `;
-      players.push({ ...player, player_number: i + 1 });
+      players.push({
+        id: player.id,
+        name: player.name,
+        player_number: i + 1,
+        created_at: player.created_at,
+      });
     }
 
     // Create 3 games for the tournament
