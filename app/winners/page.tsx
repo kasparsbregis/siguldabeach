@@ -91,15 +91,15 @@ export default function WinnersPage() {
   const getPlaceEmoji = (place: number) => {
     switch (place) {
       case 1:
-        return "🥇";
+        return "🏆";
       case 2:
         return "🥈";
       case 3:
         return "🥉";
       case 4:
-        return "🏅";
+        return "🏐";
       default:
-        return "🏅";
+        return "🏐";
     }
   };
 
@@ -184,7 +184,7 @@ export default function WinnersPage() {
                                   case 1:
                                     return "bg-yellow-50 border-b border-yellow-200";
                                   case 2:
-                                    return "bg-gray-200 border-b border-gray-200";
+                                    return "bg-gray-200 border-b border-gray-400";
                                   case 3:
                                     return "bg-orange-50 border-b border-orange-200";
                                   default:
