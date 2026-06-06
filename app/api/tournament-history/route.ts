@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { getTournamentHistory } from "@/lib/simple-db";
+import { getCurrentSeasonYear, parseSeasonYear } from "@/lib/season";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit") || "10");
-
-    const tournaments = await getTournamentHistory(limit);
+    const limit = Number.parseInt(searchParams.get("limit") || "10", 10);
+    const year =
+      parseSeasonYear(searchParams.get("year")) ?? getCurrentSeasonYear();
+    const tournaments = await getTournamentHistory(limit, year);
 
     return NextResponse.json({
       success: true,
+      year,
       tournaments,
     });
   } catch (error) {

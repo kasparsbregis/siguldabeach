@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS tournament_results (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL DEFAULT CURRENT_DATE,
+    season_year INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER,
     
     -- Player names
     player1_name VARCHAR(100) NOT NULL,
@@ -43,7 +44,8 @@ CREATE TABLE IF NOT EXISTS tournament_results (
 -- Season leaderboard table (aggregated player points)
 CREATE TABLE IF NOT EXISTS season_leaderboard (
     id SERIAL PRIMARY KEY,
-    player_name VARCHAR(100) UNIQUE NOT NULL,
+    player_name VARCHAR(100) NOT NULL,
+    season_year INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER,
     total_player_points INTEGER NOT NULL DEFAULT 0,
     tournaments_played INTEGER NOT NULL DEFAULT 0,
     first_places INTEGER NOT NULL DEFAULT 0,
@@ -64,11 +66,14 @@ CREATE TABLE IF NOT EXISTS tournament_player_points (
     sets_won INTEGER NOT NULL,
     ratio DECIMAL(5,2) NOT NULL,
     date DATE NOT NULL,
+    season_year INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Indexes for better performance
+CREATE UNIQUE INDEX IF NOT EXISTS idx_season_leaderboard_player_season ON season_leaderboard(player_name, season_year);
 CREATE INDEX IF NOT EXISTS idx_tournament_results_date ON tournament_results(date);
-CREATE INDEX IF NOT EXISTS idx_season_leaderboard_points ON season_leaderboard(total_player_points DESC);
+CREATE INDEX IF NOT EXISTS idx_tournament_results_season_year ON tournament_results(season_year, date DESC);
+CREATE INDEX IF NOT EXISTS idx_season_leaderboard_points ON season_leaderboard(season_year, total_player_points DESC);
 CREATE INDEX IF NOT EXISTS idx_tournament_player_points_player ON tournament_player_points(player_name);
 CREATE INDEX IF NOT EXISTS idx_tournament_player_points_date ON tournament_player_points(date); 

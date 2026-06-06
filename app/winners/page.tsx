@@ -1,8 +1,39 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
+import PageShell from "../components/PageShell";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { FadeIn, StaggerList, StaggerItem } from "@/components/motion";
+import { motion } from "framer-motion";
+import {
+  Trophy,
+  Medal,
+  Award,
+  Volleyball,
+  Calendar,
+  Users,
+  Loader2,
+  TrendingUp,
+  Hash,
+  Archive,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface Tournament {
   id: number;
@@ -33,6 +64,7 @@ interface Tournament {
 interface LeaderboardPlayer {
   id: number;
   player_name: string;
+  season_year?: number;
   total_player_points: number;
   tournaments_played: number;
   first_places: number;
@@ -42,37 +74,83 @@ interface LeaderboardPlayer {
   updated_at: string;
 }
 
+const podiumConfig = [
+  {
+    place: 2,
+    icon: Medal,
+    height: "h-28",
+    color: "from-slate-400/20 to-slate-500/5 border-slate-400/30",
+    text: "text-slate-300",
+    badge: "silver" as const,
+    order: "order-1",
+  },
+  {
+    place: 1,
+    icon: Trophy,
+    height: "h-36",
+    color: "from-amber-400/25 to-amber-500/5 border-amber-400/40",
+    text: "text-amber-300",
+    badge: "gold" as const,
+    order: "order-2",
+  },
+  {
+    place: 3,
+    icon: Award,
+    height: "h-24",
+    color: "from-orange-400/20 to-orange-500/5 border-orange-400/30",
+    text: "text-orange-300",
+    badge: "bronze" as const,
+    order: "order-3",
+  },
+];
+
+const placeIcons = [Trophy, Medal, Award, Volleyball];
+
 export default function WinnersPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardPlayer[]>([]);
+  const [seasonYears, setSeasonYears] = useState<number[]>([]);
+  const [selectedYear, setSelectedYear] = useState<number>(
+    new Date().getFullYear()
+  );
+  const [currentYear, setCurrentYear] = useState<number>(
+    new Date().getFullYear()
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchData();
+    const init = async () => {
+      try {
+        const seasonsResponse = await fetch("/api/seasons");
+        const seasonsData = await seasonsResponse.json();
+        if (seasonsData.success) {
+          setSeasonYears(seasonsData.years);
+          setSelectedYear(seasonsData.currentYear);
+          setCurrentYear(seasonsData.currentYear);
+        }
+      } catch (error) {
+        console.error("Error fetching seasons:", error);
+      }
+    };
+
+    init();
   }, []);
 
-  const fetchData = async () => {
-    try {
-      // Fetch both leaderboard and tournaments in parallel
-      const [leaderboardResponse, tournamentsResponse] = await Promise.all([
-        fetch("/api/season-leaderboard"),
-        fetch("/api/tournament-history?limit=20"),
-      ]);
+  useEffect(() => {
+    fetchData(selectedYear);
+  }, [selectedYear]);
 
+  const fetchData = async (year: number) => {
+    setLoading(true);
+    try {
+      const [leaderboardResponse, tournamentsResponse] = await Promise.all([
+        fetch(`/api/season-leaderboard?year=${year}`),
+        fetch(`/api/tournament-history?limit=20&year=${year}`),
+      ]);
       const leaderboardData = await leaderboardResponse.json();
       const tournamentsData = await tournamentsResponse.json();
-
-      if (leaderboardData.success) {
-        setLeaderboard(leaderboardData.leaderboard);
-      } else {
-        console.error("Failed to fetch season leaderboard");
-      }
-
-      if (tournamentsData.success) {
-        setTournaments(tournamentsData.tournaments);
-      } else {
-        console.error("Failed to fetch tournament history");
-      }
+      if (leaderboardData.success) setLeaderboard(leaderboardData.leaderboard);
+      if (tournamentsData.success) setTournaments(tournamentsData.tournaments);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -80,332 +158,373 @@ export default function WinnersPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString("lv-LV", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
-  };
 
-  const getPlaceEmoji = (place: number) => {
-    switch (place) {
-      case 1:
-        return "🏆";
-      case 2:
-        return "🥈";
-      case 3:
-        return "🥉";
-      case 4:
-        return "🏐";
-      default:
-        return "🏐";
-    }
-  };
+  const topThree = leaderboard.slice(0, 3);
 
   return (
-    <div className="h-[100vh] flex flex-col tracking-tight">
-      <div className="w-full border-b border-black/20">
-        <Navbar />
-      </div>
-      <div className="container mx-auto flex-1 tracking-tighter">
-        <div className="flex flex-col items-center pt-8 pb-8">
-          <h1 className="text-2xl font-bold md:text-5xl">Uzvarētāji</h1>
-          <p className="text-sm text-center mt-2 md:text-xl">
-            Turnīru rezultāti un spēlētāju statistika
-          </p>
+    <PageShell fullWidth>
+      <FadeIn className="mb-10">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 ring-1 ring-amber-500/20">
+            <Trophy className="h-6 w-6 text-amber-400" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold uppercase tracking-tight md:text-4xl">
+              <span className="text-gradient-neon">Uzvarētāji</span>
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {selectedYear === currentYear
+                ? "Aktīvās sezonas reitings un turnīru vēsture"
+                : `${selectedYear}. sezonas arhīvs`}
+            </p>
+          </div>
+        </div>
+      </FadeIn>
 
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto"></div>
-              <p className="mt-4 text-gray-600">Ielādē datus...</p>
+      {seasonYears.length > 0 && (
+        <FadeIn delay={0.05} className="mb-8">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <Archive className="size-3.5" />
+              Sezonu arhīvs
             </div>
+            <div className="flex flex-wrap gap-2">
+              {seasonYears.map((year) => {
+                const isActive = year === selectedYear;
+                const isCurrent = year === currentYear;
+
+                return (
+                  <Button
+                    key={year}
+                    type="button"
+                    variant={isActive ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedYear(year)}
+                    className={cn(
+                      "cursor-pointer rounded-xl",
+                      isActive
+                        ? "font-semibold"
+                        : "bg-white/5 hover:bg-white/10"
+                    )}
+                  >
+                    {year}
+                    {isCurrent ? " · Aktīvā" : ""}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </FadeIn>
+      )}
+
+      {loading ? (
+        <div className="flex flex-col items-center py-24">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          >
+            <Loader2 className="h-10 w-10 text-cyan-400" />
+          </motion.div>
+          <p className="mt-4 text-muted-foreground">Ielādē datus...</p>
+        </div>
+      ) : (
+        <div className="space-y-10">
+          {leaderboard.length === 0 && (
+            <FadeIn>
+              <Card className="rounded-2xl py-12 text-center">
+                <Trophy className="mx-auto h-10 w-10 text-muted-foreground" />
+                <p className="mt-4 text-muted-foreground">
+                  {selectedYear}. sezonā vēl nav reitinga datu.
+                </p>
+              </Card>
+            </FadeIn>
+          )}
+
+          {leaderboard.length > 0 && (
+            <>
+              {/* Podium */}
+              {topThree.length >= 3 && (
+                <FadeIn delay={0.1}>
+                  <div className="flex items-end justify-center gap-3 px-4 md:gap-6">
+                    {podiumConfig.map((config) => {
+                      const player = topThree[config.place - 1];
+                      if (!player) return null;
+                      const PodiumIcon = config.icon;
+                      return (
+                        <motion.div
+                          key={config.place}
+                          initial={{ opacity: 0, y: 30 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: config.place * 0.15 }}
+                          className={cn(
+                            "flex w-full max-w-[200px] flex-col items-center",
+                            config.order
+                          )}
+                        >
+                          <PodiumIcon
+                            className={cn("mb-2 h-6 w-6", config.text)}
+                          />
+                          <p className="mb-3 text-center text-sm font-bold">
+                            {player.player_name}
+                          </p>
+                          <div
+                            className={cn(
+                              "flex w-full flex-col items-center justify-end rounded-t-xl border bg-gradient-to-b px-3 pb-3 pt-4",
+                              config.height,
+                              config.color
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "font-[family-name:var(--font-barlow-condensed)] text-3xl font-bold",
+                                config.text
+                              )}
+                            >
+                              {config.place}
+                            </span>
+                            <span className="mt-1 text-xs text-muted-foreground">
+                              {player.total_player_points} pts
+                            </span>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </FadeIn>
+              )}
+
+              {/* Leaderboard table */}
+              <FadeIn delay={0.2}>
+                <Card className="overflow-hidden rounded-2xl border-white/[0.08]">
+                  <CardHeader className="border-b border-white/[0.06] bg-white/[0.02]">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-cyan-400" />
+                      <CardTitle>{selectedYear}. sezonas reitings</CardTitle>
+                    </div>
+                    <CardDescription>
+                      Pilna tabula ar visiem spēlētājiem šajā sezonā
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-16">#</TableHead>
+                          <TableHead>Spēlētājs</TableHead>
+                          <TableHead className="text-center">Punkti</TableHead>
+                          <TableHead className="hidden text-center sm:table-cell">
+                            Turnīri
+                          </TableHead>
+                          <TableHead className="hidden text-center md:table-cell">
+                            PPT
+                          </TableHead>
+                          <TableHead className="hidden text-center lg:table-cell">
+                            Uzvaras
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {leaderboard.map((player, index) => {
+                          const ppt =
+                            player.tournaments_played > 0
+                              ? (
+                                  player.total_player_points /
+                                  player.tournaments_played
+                                ).toFixed(2)
+                              : "0.00";
+                          const PlaceIcon = placeIcons[index] ?? Hash;
+                          const isTop3 = index < 3;
+
+                          return (
+                            <TableRow
+                              key={player.id}
+                              className={cn(
+                                isTop3 && "bg-white/[0.02]"
+                              )}
+                            >
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={cn(
+                                      "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold",
+                                      index === 0 &&
+                                        "bg-amber-500/15 text-amber-400",
+                                      index === 1 &&
+                                        "bg-slate-400/15 text-slate-300",
+                                      index === 2 &&
+                                        "bg-orange-500/15 text-orange-400",
+                                      index > 2 && "bg-white/[0.04] text-muted-foreground"
+                                    )}
+                                  >
+                                    {index < 3 ? (
+                                      <PlaceIcon className="h-3.5 w-3.5" />
+                                    ) : (
+                                      index + 1
+                                    )}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-semibold">
+                                {player.player_name}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <span className="font-bold text-cyan-400">
+                                  {player.total_player_points}
+                                </span>
+                              </TableCell>
+                              <TableCell className="hidden text-center text-muted-foreground sm:table-cell">
+                                {player.tournaments_played}
+                              </TableCell>
+                              <TableCell className="hidden text-center font-medium text-emerald-400 md:table-cell">
+                                {ppt}
+                              </TableCell>
+                              <TableCell className="hidden lg:table-cell">
+                                <div className="flex justify-center gap-1">
+                                  <Badge variant="gold">{player.first_places}</Badge>
+                                  <Badge variant="silver">
+                                    {player.second_places}
+                                  </Badge>
+                                  <Badge variant="bronze">
+                                    {player.third_places}
+                                  </Badge>
+                                  <Badge variant="ocean">
+                                    {player.fourth_places}
+                                  </Badge>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </FadeIn>
+            </>
+          )}
+
+          {/* Tournament history */}
+          {tournaments.length === 0 ? (
+            <FadeIn>
+              <Card className="rounded-2xl py-16 text-center">
+                <Volleyball className="mx-auto h-10 w-10 text-muted-foreground" />
+                <p className="mt-4 text-muted-foreground">
+                  {selectedYear}. sezonā turnīri nav atrasti.
+                </p>
+              </Card>
+            </FadeIn>
           ) : (
             <>
-              {/* Season Leaderboard */}
-              {leaderboard.length > 0 && (
-                <div className="w-full max-w-6xl px-2 mt-8">
-                  <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
-                    <div className="bg-gradient-to-r from-orange-300 to-orange-500 text-white p-4">
-                      <h2 className="text-2xl font-bold text-center">
-                        🏆 Sezonas reitings
-                      </h2>
-                      <p className="text-center mt-2 text-yellow-100">
-                        Kopējā sezonas reitinga tabula
-                      </p>
-                    </div>
-
-                    <div className="p-4">
-                      <div className="overflow-x-auto">
-                        <table className="w-full table-auto">
-                          <thead>
-                            <tr className="border-b-2 border-gray-200">
-                              <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                                Place
-                              </th>
-                              <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                                Player Name
-                              </th>
-                              <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                                Total Points
-                              </th>
-                              <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                                Tournaments
-                              </th>
-                              <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                                PPT
-                              </th>
-                              <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                                1st
-                              </th>
-                              <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                                2nd
-                              </th>
-                              <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                                3rd
-                              </th>
-                              <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                                4th
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {leaderboard.map((player, index) => {
-                              const ppt =
-                                player.tournaments_played > 0
-                                  ? (
-                                      player.total_player_points /
-                                      player.tournaments_played
-                                    ).toFixed(2)
-                                  : "0.00";
-
-                              const getRowStyle = (position: number) => {
-                                switch (position) {
-                                  case 1:
-                                    return "bg-yellow-50 border-b border-yellow-200";
-                                  case 2:
-                                    return "bg-gray-200 border-b border-gray-400";
-                                  case 3:
-                                    return "bg-orange-50 border-b border-orange-200";
-                                  default:
-                                    return "border-b border-gray-100";
-                                }
-                              };
-
+              <FadeIn>
+                <h2 className="text-xl font-bold uppercase tracking-tight">
+                  {selectedYear}. sezonas turnīri
+                </h2>
+              </FadeIn>
+              <StaggerList className="space-y-4">
+                {tournaments.map((tournament) => (
+                  <StaggerItem key={tournament.id}>
+                    <Card className="overflow-hidden rounded-2xl border-white/[0.08]">
+                      <CardHeader className="border-b border-white/[0.06] bg-white/[0.02] py-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <CardTitle className="text-base">
+                            Turnīrs #{tournament.id}
+                          </CardTitle>
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Calendar className="h-3.5 w-3.5" />
+                            {formatDate(tournament.date)}
+                          </div>
+                        </div>
+                        <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+                          <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            {tournament.player1_name}, {tournament.player2_name},{" "}
+                            {tournament.player3_name}, {tournament.player4_name}
+                          </span>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="hover:bg-transparent">
+                              <TableHead className="w-16">#</TableHead>
+                              <TableHead>Spēlētājs</TableHead>
+                              <TableHead className="text-center">GW</TableHead>
+                              <TableHead className="text-center">SW</TableHead>
+                              <TableHead className="text-center">Koef.</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {[
+                              {
+                                place: 1,
+                                name: tournament.first_place_player_name,
+                                gw: tournament.first_place_player_games_won,
+                                sw: tournament.first_place_player_sets_won,
+                                ratio: tournament.first_place_player_ratio,
+                              },
+                              {
+                                place: 2,
+                                name: tournament.second_place_player_name,
+                                gw: tournament.second_place_player_games_won,
+                                sw: tournament.second_place_player_sets_won,
+                                ratio: tournament.second_place_player_ratio,
+                              },
+                              {
+                                place: 3,
+                                name: tournament.third_place_player_name,
+                                gw: tournament.third_place_player_games_won,
+                                sw: tournament.third_place_player_sets_won,
+                                ratio: tournament.third_place_player_ratio,
+                              },
+                              {
+                                place: 4,
+                                name: tournament.fourth_place_player_name,
+                                gw: tournament.fourth_place_player_games_won,
+                                sw: tournament.fourth_place_player_sets_won,
+                                ratio: tournament.fourth_place_player_ratio,
+                              },
+                            ].map((row) => {
+                              const PlaceIcon = placeIcons[row.place - 1];
                               return (
-                                <tr
-                                  key={player.id}
-                                  className={getRowStyle(index + 1)}
-                                >
-                                  <td className="py-3 px-4">
-                                    <span className="flex items-center font-semibold">
-                                      {getPlaceEmoji(index + 1)} {index + 1}.
+                                <TableRow key={row.place}>
+                                  <TableCell>
+                                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                                      <PlaceIcon className="h-3.5 w-3.5" />
+                                      {row.place}
                                     </span>
-                                  </td>
-                                  <td className="py-3 px-4 font-semibold text-gray-800">
-                                    {player.player_name}
-                                  </td>
-                                  <td className="py-3 px-4 text-center font-bold text-blue-600">
-                                    {player.total_player_points}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {player.tournaments_played}
-                                  </td>
-                                  <td className="py-3 px-4 text-center font-semibold text-green-600">
-                                    {ppt}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm font-semibold">
-                                      {player.first_places}
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm font-semibold">
-                                      {player.second_places}
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-sm font-semibold">
-                                      {player.third_places}
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-semibold">
-                                      {player.fourth_places}
-                                    </span>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                  <TableCell className="font-medium">
+                                    {row.name}
+                                  </TableCell>
+                                  <TableCell className="text-center text-muted-foreground">
+                                    {row.gw}
+                                  </TableCell>
+                                  <TableCell className="text-center text-muted-foreground">
+                                    {row.sw}
+                                  </TableCell>
+                                  <TableCell className="text-center font-medium text-cyan-400">
+                                    {parseFloat(row.ratio).toFixed(2)}
+                                  </TableCell>
+                                </TableRow>
                               );
                             })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tournament History */}
-              {tournaments.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-600 text-lg">Turnīri nav atrasti.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="w-full max-w-6xl px-2 mt-8">
-                    <h2 className="text-2xl font-bold text-center mb-6">
-                      📋 Turnīru Vēsture
-                    </h2>
-                  </div>
-                  <div className="space-y-8 mt-4 w-full max-w-6xl px-2">
-                    {tournaments.map((tournament) => (
-                      <div
-                        key={tournament.id}
-                        className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200"
-                      >
-                        <div className="bg-black text-white p-4">
-                          <div className="flex justify-between items-center">
-                            <h2 className="text-xl font-bold">
-                              Turnīrs #{tournament.id}
-                            </h2>
-                            <p className="text-gray-300">
-                              {formatDate(tournament.date)}
-                            </p>
-                          </div>
-                          <div className="mt-2">
-                            <p className="text-gray-300">
-                              <span className="font-semibold">Dalībnieki:</span>{" "}
-                              {tournament.player1_name},{" "}
-                              {tournament.player2_name},{" "}
-                              {tournament.player3_name},{" "}
-                              {tournament.player4_name}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="p-2">
-                          <div className="overflow-x-auto">
-                            <table className="w-full table-auto">
-                              <thead>
-                                <tr className="border-b-2 border-gray-200">
-                                  <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                                    Place
-                                  </th>
-                                  <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                                    Name
-                                  </th>
-                                  <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                                    GW
-                                  </th>
-                                  <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                                    SW
-                                  </th>
-                                  <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                                    Coef.
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr className="border-b border-gray-100 bg-yellow-50">
-                                  <td className="py-3 px-4">
-                                    <span className="flex items-center">
-                                      {getPlaceEmoji(1)} 1.
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4 font-semibold text-gray-800">
-                                    {tournament.first_place_player_name}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {tournament.first_place_player_games_won}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {tournament.first_place_player_sets_won}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {parseFloat(
-                                      tournament.first_place_player_ratio
-                                    ).toFixed(2)}
-                                  </td>
-                                </tr>
-                                <tr className="border-b border-gray-100 bg-gray-200">
-                                  <td className="py-3 px-4">
-                                    <span className="flex items-center">
-                                      {getPlaceEmoji(2)} 2.
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4 font-semibold text-gray-800">
-                                    {tournament.second_place_player_name}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {tournament.second_place_player_games_won}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {tournament.second_place_player_sets_won}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {parseFloat(
-                                      tournament.second_place_player_ratio
-                                    ).toFixed(2)}
-                                  </td>
-                                </tr>
-                                <tr className="border-b border-gray-100 bg-orange-50">
-                                  <td className="py-3 px-4">
-                                    <span className="flex items-center">
-                                      {getPlaceEmoji(3)} 3.
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4 font-semibold text-gray-800">
-                                    {tournament.third_place_player_name}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {tournament.third_place_player_games_won}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {tournament.third_place_player_sets_won}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {parseFloat(
-                                      tournament.third_place_player_ratio
-                                    ).toFixed(2)}
-                                  </td>
-                                </tr>
-                                <tr className="border-b border-gray-100">
-                                  <td className="py-3 px-4">
-                                    <span className="flex items-center">
-                                      {getPlaceEmoji(4)} 4.
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4 font-semibold text-gray-800">
-                                    {tournament.fourth_place_player_name}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {tournament.fourth_place_player_games_won}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {tournament.fourth_place_player_sets_won}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {parseFloat(
-                                      tournament.fourth_place_player_ratio
-                                    ).toFixed(2)}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  </StaggerItem>
+                ))}
+              </StaggerList>
             </>
           )}
         </div>
-      </div>
-      <div className="border-t border-black/20">
-        <Footer />
-      </div>
-    </div>
+      )}
+    </PageShell>
   );
 }

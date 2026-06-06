@@ -1,12 +1,51 @@
 "use client";
 
-import React, { useState, useRef } from "react";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
+import React, { useState, useEffect, useRef } from "react";
+import PageShell from "../components/PageShell";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Field,
+  FieldContent,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { MoveLeft } from "lucide-react";
+import {
+  MoveLeft,
+  Trophy,
+  Medal,
+  Award,
+  Hash,
+  Plus,
+  X,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  UserPlus,
+  CheckCircle2,
+  Volleyball,
+} from "lucide-react";
+import { FadeIn, StaggerList, StaggerItem } from "@/components/motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
+import {
+  clearPlaySession,
+  loadPlaySession,
+  savePlaySession,
+} from "@/lib/play-session";
 
 interface PlayerAssignment {
   name: string;
@@ -20,7 +59,7 @@ interface SetResult {
 
 interface GameResult {
   sets: SetResult[];
-  matchResult: string; // "2:0", "2:1", "1:2", "0:2", or ""
+  matchResult: string;
   winningTeam: 1 | 2 | null;
 }
 
@@ -41,26 +80,169 @@ interface PlayerStats {
   position: number;
 }
 
-const Play = () => {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [players, setPlayers] = useState({
-    player1: "",
-    player2: "",
-    player3: "",
-    player4: "",
+const getRankingDisplay = (position: number) => {
+  switch (position) {
+    case 1:
+      return {
+        title: "GOLD",
+        icon: Trophy,
+        badgeVariant: "gold" as const,
+        accent: "text-amber-400",
+        ring: "ring-amber-500/30",
+      };
+    case 2:
+      return {
+        title: "SILVER",
+        icon: Medal,
+        badgeVariant: "silver" as const,
+        accent: "text-slate-300",
+        ring: "ring-slate-400/30",
+      };
+    case 3:
+      return {
+        title: "BRONZE",
+        icon: Award,
+        badgeVariant: "bronze" as const,
+        accent: "text-orange-400",
+        ring: "ring-orange-500/30",
+      };
+    default:
+      return {
+        title: `${position}. VIETA`,
+        icon: Hash,
+        badgeVariant: "ocean" as const,
+        accent: "text-cyan-400",
+        ring: "ring-cyan-500/30",
+      };
+  }
+};
+
+const DEFAULT_PLAYERS = {
+  player1: "",
+  player2: "",
+  player3: "",
+  player4: "",
+};
+
+interface PlaySessionSnapshot {
+  players: typeof DEFAULT_PLAYERS;
+  assignments: PlayerAssignment[];
+  games: Game[];
+  showResults: boolean;
+  expandedGame: number | null;
+  showWinners: boolean;
+}
+
+const calculatePlayerStatsFrom = (
+  assignments: PlayerAssignment[],
+  games: Game[]
+): PlayerStats[] => {
+  const stats: { [playerName: string]: PlayerStats } = {};
+  assignments.forEach((assignment) => {
+    stats[assignment.name] = {
+      name: assignment.name,
+      gamesWon: 0,
+      setsWon: 0,
+      pointsWon: 0,
+      pointsLost: 0,
+      ratio: 0,
+      position: 0,
+    };
   });
+
+  games.forEach((game) => {
+    if (!game.result) return;
+    const team1Players = game.team1;
+    const team2Players = game.team2;
+    if (game.result.winningTeam === 1) {
+      team1Players.forEach((player) => stats[player].gamesWon++);
+    } else if (game.result.winningTeam === 2) {
+      team2Players.forEach((player) => stats[player].gamesWon++);
+    }
+    game.result.sets.forEach((set) => {
+      if (set.team1Score > set.team2Score) {
+        team1Players.forEach((player) => stats[player].setsWon++);
+      } else if (set.team2Score > set.team1Score) {
+        team2Players.forEach((player) => stats[player].setsWon++);
+      }
+      team1Players.forEach((player) => {
+        stats[player].pointsWon += set.team1Score;
+        stats[player].pointsLost += set.team2Score;
+      });
+      team2Players.forEach((player) => {
+        stats[player].pointsWon += set.team2Score;
+        stats[player].pointsLost += set.team1Score;
+      });
+    });
+  });
+
+  Object.values(stats).forEach((stat) => {
+    stat.ratio =
+      stat.pointsLost > 0
+        ? parseFloat((stat.pointsWon / stat.pointsLost).toFixed(2))
+        : stat.pointsWon;
+  });
+
+  const sortedPlayers = Object.values(stats).sort((a, b) => {
+    if (a.gamesWon !== b.gamesWon) return b.gamesWon - a.gamesWon;
+    if (a.setsWon !== b.setsWon) return b.setsWon - a.setsWon;
+    return b.ratio - a.ratio;
+  });
+
+  sortedPlayers.forEach((player, index) => {
+    player.position = index + 1;
+  });
+  return sortedPlayers;
+};
+
+const isPlaySessionSnapshot = (value: unknown): value is PlaySessionSnapshot => {
+  if (!value || typeof value !== "object") return false;
+  const data = value as PlaySessionSnapshot;
+  return (
+    typeof data.players === "object" &&
+    data.players !== null &&
+    typeof data.players.player1 === "string" &&
+    typeof data.players.player2 === "string" &&
+    typeof data.players.player3 === "string" &&
+    typeof data.players.player4 === "string" &&
+    Array.isArray(data.assignments) &&
+    Array.isArray(data.games) &&
+    typeof data.showResults === "boolean" &&
+    (data.expandedGame === null || typeof data.expandedGame === "number") &&
+    typeof data.showWinners === "boolean"
+  );
+};
+
+const scrollPageToTop = (anchor?: HTMLElement | null) => {
+  anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
+  window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  document.documentElement.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+};
+
+const Play = () => {
+  const pageTopRef = useRef<HTMLDivElement>(null);
+  const shouldScrollToTopRef = useRef(false);
+  const [players, setPlayers] = useState(DEFAULT_PLAYERS);
   const [assignments, setAssignments] = useState<PlayerAssignment[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [expandedGame, setExpandedGame] = useState<number | null>(null);
   const [showWinners, setShowWinners] = useState(false);
   const [playerStats, setPlayerStats] = useState<PlayerStats[]>([]);
+  const [showFormErrors, setShowFormErrors] = useState(false);
+  const [isSessionReady, setIsSessionReady] = useState(false);
+
+  const playerKeys = ["player1", "player2", "player3", "player4"] as const;
+
+  const filledPlayerCount = playerKeys.filter(
+    (key) => players[key].trim().length > 0
+  ).length;
 
   const handleInputChange = (playerKey: string, value: string) => {
-    setPlayers((prev) => ({
-      ...prev,
-      [playerKey]: value,
-    }));
+    setPlayers((prev) => ({ ...prev, [playerKey]: value }));
+    if (showFormErrors && value.trim()) {
+      setShowFormErrors(false);
+    }
   };
 
   const shuffleArray = (array: number[]) => {
@@ -77,19 +259,13 @@ const Play = () => {
   ): { matchResult: string; winningTeam: 1 | 2 | null } => {
     let team1Wins = 0;
     let team2Wins = 0;
-
     sets.forEach((set) => {
-      if (set.team1Score > set.team2Score) {
-        team1Wins++;
-      } else if (set.team2Score > set.team1Score) {
-        team2Wins++;
-      }
+      if (set.team1Score > set.team2Score) team1Wins++;
+      else if (set.team2Score > set.team1Score) team2Wins++;
     });
-
     const matchResult = `${team1Wins}:${team2Wins}`;
     const winningTeam =
       team1Wins > team2Wins ? 1 : team2Wins > team1Wins ? 2 : null;
-
     return { matchResult, winningTeam };
   };
 
@@ -100,34 +276,22 @@ const Play = () => {
     value: string
   ) => {
     const score = parseInt(value) || 0;
-
     setGames((prev) => {
       const newGames = [...prev];
       const game = newGames[gameIndex];
-
       if (!game.result) {
         game.result = { sets: [], matchResult: "", winningTeam: null };
       }
-
-      // Ensure we have enough sets
       while (game.result.sets.length <= setIndex) {
         game.result.sets.push({ team1Score: 0, team2Score: 0 });
       }
-
-      // Update the score
-      if (team === 1) {
-        game.result.sets[setIndex].team1Score = score;
-      } else {
-        game.result.sets[setIndex].team2Score = score;
-      }
-
-      // Recalculate match result
+      if (team === 1) game.result.sets[setIndex].team1Score = score;
+      else game.result.sets[setIndex].team2Score = score;
       const { matchResult, winningTeam } = calculateMatchResult(
         game.result.sets
       );
       game.result.matchResult = matchResult;
       game.result.winningTeam = winningTeam;
-
       return newGames;
     });
   };
@@ -136,15 +300,12 @@ const Play = () => {
     setGames((prev) => {
       const newGames = [...prev];
       const game = newGames[gameIndex];
-
       if (!game.result) {
         game.result = { sets: [], matchResult: "", winningTeam: null };
       }
-
       if (game.result.sets.length < 3) {
         game.result.sets.push({ team1Score: 0, team2Score: 0 });
       }
-
       return newGames;
     });
   };
@@ -153,27 +314,21 @@ const Play = () => {
     setGames((prev) => {
       const newGames = [...prev];
       const game = newGames[gameIndex];
-
       if (game.result && game.result.sets.length > setIndex) {
         game.result.sets.splice(setIndex, 1);
-
-        // Recalculate match result
         const { matchResult, winningTeam } = calculateMatchResult(
           game.result.sets
         );
         game.result.matchResult = matchResult;
         game.result.winningTeam = winningTeam;
       }
-
       return newGames;
     });
   };
 
   const generateGames = (assignments: PlayerAssignment[]) => {
-    // Find players by their assigned numbers
     const getPlayerByNumber = (number: number) =>
       assignments.find((p) => p.number === number)?.name || "";
-
     return [
       {
         gameNumber: 1,
@@ -193,146 +348,26 @@ const Play = () => {
     ];
   };
 
-  const allGamesHaveResults = () => {
-    return (
-      games.length === 3 &&
-      games.every(
-        (game) =>
-          game.result &&
-          game.result.matchResult !== "" &&
-          game.result.winningTeam !== null
-      )
+  const allGamesHaveResults = () =>
+    games.length === 3 &&
+    games.every(
+      (game) =>
+        game.result &&
+        game.result.matchResult !== "" &&
+        game.result.winningTeam !== null
     );
-  };
-
-  const calculatePlayerStats = () => {
-    const stats: { [playerName: string]: PlayerStats } = {};
-
-    // Initialize stats for all players
-    assignments.forEach((assignment) => {
-      stats[assignment.name] = {
-        name: assignment.name,
-        gamesWon: 0,
-        setsWon: 0,
-        pointsWon: 0,
-        pointsLost: 0,
-        ratio: 0,
-        position: 0,
-      };
-    });
-
-    // Calculate stats for each game
-    games.forEach((game) => {
-      if (!game.result) return;
-
-      const team1Players = game.team1;
-      const team2Players = game.team2;
-
-      // Count games won
-      if (game.result.winningTeam === 1) {
-        team1Players.forEach((player) => {
-          stats[player].gamesWon++;
-        });
-      } else if (game.result.winningTeam === 2) {
-        team2Players.forEach((player) => {
-          stats[player].gamesWon++;
-        });
-      }
-
-      // Count sets won and points
-      game.result.sets.forEach((set) => {
-        if (set.team1Score > set.team2Score) {
-          // Team 1 won this set
-          team1Players.forEach((player) => {
-            stats[player].setsWon++;
-          });
-        } else if (set.team2Score > set.team1Score) {
-          // Team 2 won this set
-          team2Players.forEach((player) => {
-            stats[player].setsWon++;
-          });
-        }
-
-        // Add points won/lost
-        team1Players.forEach((player) => {
-          stats[player].pointsWon += set.team1Score;
-          stats[player].pointsLost += set.team2Score;
-        });
-
-        team2Players.forEach((player) => {
-          stats[player].pointsWon += set.team2Score;
-          stats[player].pointsLost += set.team1Score;
-        });
-      });
-    });
-
-    // Calculate ratios
-    Object.values(stats).forEach((stat) => {
-      stat.ratio =
-        stat.pointsLost > 0
-          ? parseFloat((stat.pointsWon / stat.pointsLost).toFixed(2))
-          : stat.pointsWon;
-    });
-
-    // Sort players by ranking criteria
-    const sortedPlayers = Object.values(stats).sort((a, b) => {
-      // First: Games won (descending)
-      if (a.gamesWon !== b.gamesWon) return b.gamesWon - a.gamesWon;
-      // Second: Sets won (descending)
-      if (a.setsWon !== b.setsWon) return b.setsWon - a.setsWon;
-      // Third: Points ratio (descending)
-      return b.ratio - a.ratio;
-    });
-
-    // Assign positions
-    sortedPlayers.forEach((player, index) => {
-      player.position = index + 1;
-    });
-
-    return sortedPlayers;
-  };
-
-  const getRankingDisplay = (position: number) => {
-    switch (position) {
-      case 1:
-        return {
-          title: "🥇 GOLD",
-          bgColor: "bg-yellow-100 border-yellow-400",
-          textColor: "text-yellow-800",
-        };
-      case 2:
-        return {
-          title: "🥈 SILVER",
-          bgColor: "bg-gray-100 border-gray-400",
-          textColor: "text-gray-800",
-        };
-      case 3:
-        return {
-          title: "🥉 BRONZE",
-          bgColor: "bg-orange-100 border-orange-400",
-          textColor: "text-orange-800",
-        };
-      case 4:
-        return {
-          title: "🏅 4TH PLACE",
-          bgColor: "bg-blue-100 border-blue-400",
-          textColor: "text-blue-800",
-        };
-      default:
-        return {
-          title: `${position}TH PLACE`,
-          bgColor: "bg-gray-100 border-gray-400",
-          textColor: "text-gray-800",
-        };
-    }
-  };
 
   const handleViewWinners = async () => {
-    const stats = calculatePlayerStats();
+    const stats = calculatePlayerStatsFrom(assignments, games);
     setPlayerStats(stats);
+    shouldScrollToTopRef.current = true;
     setShowWinners(true);
+    window.setTimeout(() => {
+      if (!shouldScrollToTopRef.current) return;
+      shouldScrollToTopRef.current = false;
+      scrollPageToTop(pageTopRef.current);
+    }, 500);
 
-    // Save tournament results to database
     try {
       const playerNames = [
         players.player1.trim(),
@@ -340,36 +375,18 @@ const Play = () => {
         players.player3.trim(),
         players.player4.trim(),
       ];
-
       const response = await fetch("/api/save-tournament", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          playerNames,
-          playerStats: stats,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerNames, playerStats: stats }),
       });
-
       const data = await response.json();
-
-      if (data.success) {
-        toast.success("Turnīrs ir saglabāts datubāzē!");
-      } else {
-        toast.error("Kļūda saglabājot turnīru!");
-      }
+      if (data.success) toast.success("Turnīrs ir saglabāts datubāzē!");
+      else toast.error("Kļūda saglabājot turnīru!");
     } catch (error) {
       console.error("Error saving tournament:", error);
       toast.error("Kļūda saglabājot turnīru!");
     }
-
-    // Scroll to top after state update
-    setTimeout(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
-      }
-    }, 100);
   };
 
   const handleStartGame = () => {
@@ -379,38 +396,26 @@ const Play = () => {
       players.player3,
       players.player4,
     ];
-
-    // Check if all players have names
     if (playerNames.some((name) => !name.trim())) {
+      setShowFormErrors(true);
       toast.error("Lūdzu ievadiet visu spēlētāju vārdus!");
       return;
     }
-
-    // Create array of numbers 1-4 and shuffle them
+    setShowFormErrors(false);
     const numbers = shuffleArray([1, 2, 3, 4]);
-
-    // Assign shuffled numbers to players
     const newAssignments = playerNames.map((name, index) => ({
       name: name.trim(),
       number: numbers[index],
     }));
-
-    // Generate games based on assignments
-    const newGames = generateGames(newAssignments);
-
     setAssignments(newAssignments);
-    setGames(newGames);
+    setGames(generateGames(newAssignments));
     setShowResults(true);
     toast.success("Spēļu secība ir izveidota!");
   };
 
   const handleReset = () => {
-    setPlayers({
-      player1: "",
-      player2: "",
-      player3: "",
-      player4: "",
-    });
+    clearPlaySession();
+    setPlayers(DEFAULT_PLAYERS);
     setAssignments([]);
     setGames([]);
     setShowResults(false);
@@ -419,326 +424,525 @@ const Play = () => {
     setPlayerStats([]);
   };
 
+  useEffect(() => {
+    const saved = loadPlaySession<unknown>();
+    if (saved && isPlaySessionSnapshot(saved)) {
+      setPlayers(saved.players);
+      setAssignments(saved.assignments);
+      setGames(saved.games);
+      setShowResults(saved.showResults);
+      setExpandedGame(saved.expandedGame);
+      setShowWinners(saved.showWinners);
+      if (saved.showWinners && saved.assignments.length > 0) {
+        setPlayerStats(
+          calculatePlayerStatsFrom(saved.assignments, saved.games)
+        );
+      }
+    }
+    setIsSessionReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isSessionReady) return;
+
+    savePlaySession({
+      players,
+      assignments,
+      games,
+      showResults,
+      expandedGame,
+      showWinners,
+    });
+  }, [
+    isSessionReady,
+    players,
+    assignments,
+    games,
+    showResults,
+    expandedGame,
+    showWinners,
+  ]);
+
   const toggleGameExpansion = (gameIndex: number) => {
     setExpandedGame(expandedGame === gameIndex ? null : gameIndex);
   };
 
-  const handleBackToGames = () => {
-    setShowWinners(false);
-  };
-
   return (
-    <div className="h-[100vh] flex flex-col tracking-tight">
-      <div className="w-full border-b border-black/20">
-        <Navbar />
-      </div>
+    <PageShell fullWidth>
       <div
-        ref={scrollRef}
-        className="container mx-auto flex-1 tracking-tighter"
+        ref={pageTopRef}
+        className="mx-auto flex w-full max-w-2xl scroll-mt-20 flex-col gap-10 pt-8 md:gap-14 md:pt-12 lg:pt-14"
       >
-        <div className="flex flex-col items-center pt-8 pb-8">
-          <h1 className="text-2xl font-bold md:text-5xl">Spēlēt</h1>
-          <p className="text-sm text-center mt-2 md:text-xl">
-            Ievadiet 4 spēlētājus, izlozējiet spēļu secību un sāciet spēli!
-          </p>
-
-          {!showResults ? (
-            <div className="flex flex-col items-center mt-4 gap-3">
-              <Input
-                type="text"
-                placeholder="Spēlētājs 1"
-                value={players.player1}
-                onChange={(e) => handleInputChange("player1", e.target.value)}
-                className="w-80 h-12 text-xl md:text-3xl text-center md:w-2xl md:h-16"
-              />
-              <Input
-                type="text"
-                placeholder="Spēlētājs 2"
-                value={players.player2}
-                onChange={(e) => handleInputChange("player2", e.target.value)}
-                className="w-80 h-12 text-xl md:text-3xl text-center md:w-2xl md:h-16"
-              />
-              <Input
-                type="text"
-                placeholder="Spēlētājs 3"
-                value={players.player3}
-                onChange={(e) => handleInputChange("player3", e.target.value)}
-                className="w-80 h-12 text-xl md:text-3xl text-center md:w-2xl md:h-16"
-              />
-              <Input
-                type="text"
-                placeholder="Spēlētājs 4"
-                value={players.player4}
-                onChange={(e) => handleInputChange("player4", e.target.value)}
-                className="w-80 h-12 text-xl md:text-3xl text-center md:w-2xl md:h-16"
-              />
-              <Button
-                onClick={handleStartGame}
-                className="bg-black text-white hover:bg-gray-800 w-80 h-12 px-8 text-lg mt-2 md:w-2xl md:h-16"
-              >
-                Sākt spēli
-              </Button>
+        <FadeIn className="flex flex-col gap-6 md:gap-7">
+          <div className="flex items-center gap-3">
+            <span className="h-8 w-0.5 shrink-0 rounded-full bg-gradient-to-b from-primary to-secondary" />
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gradient-neon md:text-sm">
+              <Volleyball className="size-4" />
+              Sigulda Beach · Turnīrs
             </div>
-          ) : showWinners ? (
-            <div className="flex flex-col items-center mt-4 gap-6 max-w-md w-full">
-              <h2 className="text-xl font-semibold text-center">
-                🏆 Uzvarētāju statistika
-              </h2>
+          </div>
 
-              <div className="w-full space-y-4 px-2">
-                {playerStats.map((stat, index) => {
-                  const ranking = getRankingDisplay(stat.position);
-                  return (
-                    <div
-                      key={index}
-                      className={`border-2 rounded-lg p-4 shadow-sm ${ranking.bgColor}`}
-                    >
-                      <div className="text-center">
-                        <div
-                          className={`font-bold text-sm mb-1 ${ranking.textColor}`}
-                        >
-                          {ranking.title}
-                        </div>
-                        <h3 className="font-bold text-lg mb-2">{stat.name}</h3>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="font-medium">
-                              Spēles uzvarētas:
-                            </span>
-                            <div className="text-lg font-bold text-green-600">
-                              {stat.gamesWon}
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium">Seti uzvarēti:</span>
-                            <div className="text-lg font-bold text-blue-600">
-                              {stat.setsWon}
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium">
-                              Punkti uzvarēti:
-                            </span>
-                            <div className="text-lg font-bold text-purple-600">
-                              {stat.pointsWon}
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium">Punkti zaudēti:</span>
-                            <div className="text-lg font-bold text-red-600">
-                              {stat.pointsLost}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="mt-2">
-                          <span className="font-medium">
-                            Punktu koeficients:
-                          </span>
-                          <div className="text-lg font-bold text-gray-700">
-                            {stat.ratio}
-                          </div>
-                        </div>
-                      </div>
+          <div className="flex items-start gap-4">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20 md:size-14">
+              <Volleyball className="size-6 text-primary md:size-7" />
+            </div>
+            <div className="flex flex-col gap-2 pt-0.5">
+              <h1 className="text-3xl font-bold uppercase tracking-tight md:text-4xl lg:text-[2.75rem]">
+                <span className="text-gradient-neon">Spēlēt</span>
+              </h1>
+              <p className="max-w-lg text-base leading-relaxed text-muted-foreground md:text-lg">
+                Ievadi četrus spēlētājus, izlozē spēļu secību un sāc turnīru.
+              </p>
+            </div>
+          </div>
+        </FadeIn>
+
+        <AnimatePresence mode="wait">
+          {!showResults ? (
+            <motion.div
+              key="setup"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="w-full max-w-2xl"
+            >
+              <Card className="overflow-hidden border-border/80">
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Badge variant="outline" className="w-fit">
+                        1. solis
+                      </Badge>
+                      <CardTitle>Spēlētāju ievade</CardTitle>
+                      <CardDescription>
+                        Ievadi visu četru spēlētāju vārdus, lai sāktu turnīru
+                      </CardDescription>
                     </div>
-                  );
-                })}
+                    <div className="hidden shrink-0 sm:flex sm:size-12 sm:items-center sm:justify-center sm:rounded-full sm:bg-primary/15">
+                      <UserPlus className="size-5 text-primary" />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <FieldGroup>
+                    {playerKeys.map((key, i) => {
+                      const value = players[key];
+                      const isFilled = value.trim().length > 0;
+                      const isInvalid =
+                        showFormErrors && !isFilled;
+
+                      return (
+                        <Field
+                          key={key}
+                          data-invalid={isInvalid ? "true" : undefined}
+                        >
+                          <div
+                            className={cn(
+                              "flex w-full items-center gap-3 rounded-xl border bg-muted/30 px-4 py-3 transition-colors duration-200 hover:bg-muted/50",
+                              isInvalid
+                                ? "border-destructive/60"
+                                : isFilled
+                                  ? "border-primary/30"
+                                  : "border-border",
+                              "focus-within:border-primary/50 focus-within:bg-muted/50 focus-within:ring-1 focus-within:ring-primary/20"
+                            )}
+                          >
+                            <Avatar size="sm">
+                              <AvatarFallback>
+                                {isFilled
+                                  ? value.trim()[0].toUpperCase()
+                                  : i + 1}
+                              </AvatarFallback>
+                            </Avatar>
+                            <FieldContent className="min-w-0 flex-1">
+                              <FieldLabel htmlFor={key} className="sr-only">
+                                Spēlētājs {i + 1}
+                              </FieldLabel>
+                              <Input
+                                id={key}
+                                type="text"
+                                placeholder={`Spēlētāja vārds`}
+                                value={value}
+                                onChange={(e) =>
+                                  handleInputChange(key, e.target.value)
+                                }
+                                aria-invalid={isInvalid || undefined}
+                                className="border-0 bg-transparent px-0 shadow-none hover:bg-transparent focus-visible:border-transparent focus-visible:bg-transparent focus-visible:ring-0"
+                              />
+                            </FieldContent>
+                            {isFilled && (
+                              <CheckCircle2 className="size-4 shrink-0 text-primary" />
+                            )}
+                          </div>
+                          {isInvalid && (
+                            <FieldError>Ievadiet spēlētāja vārdu</FieldError>
+                          )}
+                        </Field>
+                      );
+                    })}
+                  </FieldGroup>
+                  <div className="mt-6 flex flex-col gap-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Aizpildīti spēlētāji
+                      </span>
+                      <span className="font-medium tabular-nums">
+                        {filledPlayerCount}/4
+                      </span>
+                    </div>
+                    <Progress
+                      value={(filledPlayerCount / 4) * 100}
+                      className="h-1.5"
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-col gap-3 border-t border-border/60 pt-6 sm:flex-row sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Pēc starta sistēma automātiski izlozēs spēļu pārus
+                  </p>
+                  <Button
+                    onClick={handleStartGame}
+                    size="lg"
+                    disabled={filledPlayerCount < 4}
+                    className="w-full cursor-pointer sm:w-auto"
+                  >
+                    <UserPlus data-icon="inline-start" />
+                    Sākt spēli
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          ) : showWinners ? (
+            <motion.div
+              key="winners"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              onAnimationComplete={() => {
+                if (!shouldScrollToTopRef.current) return;
+                shouldScrollToTopRef.current = false;
+                scrollPageToTop(pageTopRef.current);
+              }}
+              className="mx-auto flex w-full max-w-lg flex-col gap-6"
+            >
+              <div className="flex items-center justify-center gap-2">
+                <Trophy className="h-6 w-6 text-amber-400" />
+                <h2 className="text-2xl font-bold">Uzvarētāju statistika</h2>
               </div>
 
-              <div className="flex gap-2">
+              <StaggerList className="flex flex-col gap-4">
+                {playerStats.map((stat) => {
+                  const ranking = getRankingDisplay(stat.position);
+                  const RankIcon = ranking.icon;
+                  return (
+                    <StaggerItem key={stat.name}>
+                      <Card
+                        className={cn(
+                          "rounded-2xl ring-2 transition-all duration-200",
+                          ranking.ring
+                        )}
+                      >
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <Badge variant={ranking.badgeVariant}>
+                              <RankIcon className="mr-1 h-3 w-3" />
+                              {ranking.title}
+                            </Badge>
+                            <span
+                              className={cn(
+                                "text-2xl font-bold",
+                                ranking.accent
+                              )}
+                            >
+                              #{stat.position}
+                            </span>
+                          </div>
+                          <h3 className="mt-3 text-5xl font-bold text-center">{stat.name}</h3>
+                          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                            <StatBox
+                              label="Spēles uzvarētas"
+                              value={stat.gamesWon}
+                              color="text-emerald-600"
+                            />
+                            <StatBox
+                              label="Seti uzvarēti"
+                              value={stat.setsWon}
+                              color="text-cyan-600"
+                            />
+                            <StatBox
+                              label="Punkti uzvarēti"
+                              value={stat.pointsWon}
+                              color="text-violet-600"
+                            />
+                            <StatBox
+                              label="Punkti zaudēti"
+                              value={stat.pointsLost}
+                              color="text-rose-600"
+                            />
+                          </div>
+                          <div className="mt-3 rounded-xl bg-white/[0.04] px-3 py-2 text-center ring-1 ring-white/[0.06]">
+                            <span className="text-xs text-muted-foreground">
+                              Punktu koeficients
+                            </span>
+                            <div className="text-lg font-bold">{stat.ratio}</div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </StaggerItem>
+                  );
+                })}
+              </StaggerList>
+
+              <div className="flex flex-wrap justify-center gap-3">
                 <Button
-                  onClick={handleBackToGames}
-                  variant="outline"
-                  className="h-12 px-4 text-lg"
+                  onClick={() => setShowWinners(false)}
+                  variant="glass"
+                  size="lg"
+                  className="cursor-pointer w-full sm:w-auto"
                 >
-                  <MoveLeft />
+                  <MoveLeft className="h-4 w-4" />
                   Atpakaļ uz spēlēm
                 </Button>
                 <Button
                   onClick={handleReset}
                   variant="outline"
-                  className="h-12 px-4 text-lg"
+                  size="lg"
+                  className="cursor-pointer rounded-xl w-full sm:w-auto"
                 >
+                  <RotateCcw className="h-4 w-4" />
                   Jauna spēle
                 </Button>
               </div>
-            </div>
+            </motion.div>
           ) : (
-            <div className="flex flex-col items-center mt-4 gap-6 max-w-md md:max-w-3xl w-full">
-              <div className="w-full">
-                <h2 className="text-xl font-semibold text-center mb-4">
-                  Spēlētāju secība:
-                </h2>
-                <div className="space-y-2 px-2">
-                  {assignments.map((assignment, index) => (
+            <motion.div
+              key="games"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex w-full flex-col gap-6 md:gap-8"
+            >
+              <Card className="rounded-2xl">
+                <CardHeader className="text-center pb-2">
+                  <CardTitle>Spēlētāju secība</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2">
+                  {assignments.map((assignment) => (
                     <div
-                      key={index}
-                      className="flex items-center gap-2 p-2 bg-gray-100 rounded"
+                      key={assignment.number}
+                      className="glass-subtle flex items-center gap-3 rounded-xl px-4 py-3"
                     >
-                      <span className="font-bold text-lg">
-                        {assignment.number}.
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+                        {assignment.number}
                       </span>
-                      <span>{assignment.name}</span>
+                      <span className="font-medium">{assignment.name}</span>
                     </div>
                   ))}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
 
-              <div className="w-full">
-                <h2 className="text-xl font-semibold text-center mb-4">
-                  Spēles:
-                </h2>
-                <div className="space-y-4 px-2">
-                  {games.map((game, index) => (
-                    <div
-                      key={index}
-                      className="border rounded-lg p-4 bg-white shadow-sm"
-                    >
-                      <h3 className="font-semibold text-lg md:text-3xl mb-2 text-center">
-                        {game.gameNumber}. spēle
-                      </h3>
-                      <div className="flex items-center justify-center gap-4 mb-3">
-                        <div className="text-center">
-                          <div
-                            className={`font-medium text-md md:text-3xl ${
-                              game.result?.winningTeam === 1
-                                ? "text-green-600"
-                                : "text-blue-600"
-                            }`}
+              <div className="flex flex-col gap-4 md:gap-5">
+                {games.map((game, index) => (
+                  <motion.div
+                    key={game.gameNumber}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <Card className="rounded-2xl">
+                      <CardHeader className="pb-2 text-center">
+                        <CardTitle className="text-xl md:text-2xl">
+                          {game.gameNumber}. spēle
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center justify-center gap-4">
+                          <TeamName
+                            names={game.team1}
+                            isWinner={game.result?.winningTeam === 1}
+                            color="cyan"
+                          />
+                          <div className="glass-subtle rounded-xl px-4 py-2 text-xl font-bold">
+                            {game.result?.matchResult || "VS"}
+                          </div>
+                          <TeamName
+                            names={game.team2}
+                            isWinner={game.result?.winningTeam === 2}
+                            color="orange"
+                          />
+                        </div>
+
+                        <div className="mt-4 text-center">
+                          <Button
+                            variant="glass"
+                            size="sm"
+                            onClick={() => toggleGameExpansion(index)}
+                            className="cursor-pointer rounded-xl"
                           >
-                            {game.team1.join(" & ")}
-                          </div>
-                        </div>
-                        <div className="text-xl font-bold">
-                          {game.result?.matchResult || "VS"}
-                        </div>
-                        <div className="text-center">
-                          <div
-                            className={`font-medium text-md md:text-3xl ${
-                              game.result?.winningTeam === 2
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }`}
-                          >
-                            {game.team2.join(" & ")}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toggleGameExpansion(index)}
-                          className="h-10 px-6 text-base"
-                        >
-                          {expandedGame === index
-                            ? "Paslēpt rezultātu"
-                            : "Ievadīt rezultātu"}
-                        </Button>
-                      </div>
-
-                      {expandedGame === index && (
-                        <div className="mt-4 space-y-3">
-                          <div className="text-center font-medium">
-                            Setu rezultāti:
-                          </div>
-
-                          {game.result?.sets.map((set, setIndex) => (
-                            <div
-                              key={setIndex}
-                              className="flex items-center justify-center gap-2"
-                            >
-                              <span className="text-sm font-medium">
-                                {setIndex + 1}. sets:
-                              </span>
-                              <Input
-                                type="number"
-                                placeholder="0"
-                                value={set.team1Score || ""}
-                                onChange={(e) =>
-                                  handleSetScoreChange(
-                                    index,
-                                    setIndex,
-                                    1,
-                                    e.target.value
-                                  )
-                                }
-                                className="w-20 h-10 text-center text-lg font-semibold"
-                              />
-                              <span className="text-lg font-bold">:</span>
-                              <Input
-                                type="number"
-                                placeholder="0"
-                                value={set.team2Score || ""}
-                                onChange={(e) =>
-                                  handleSetScoreChange(
-                                    index,
-                                    setIndex,
-                                    2,
-                                    e.target.value
-                                  )
-                                }
-                                className="w-20 h-10 text-center text-lg font-semibold"
-                              />
-                              {game.result!.sets.length > 1 && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => removeSet(index, setIndex)}
-                                  className="text-red-600 hover:text-red-700 h-10 w-10"
-                                >
-                                  ×
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-
-                          <div className="flex justify-center gap-2">
-                            {(!game.result?.sets.length ||
-                              game.result.sets.length < 3) && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => addSet(index)}
-                                className="h-10 px-6 text-base"
-                              >
-                                + Pievienot setu
-                              </Button>
+                            {expandedGame === index ? (
+                              <>
+                                <ChevronUp className="h-4 w-4" />
+                                Paslēpt rezultātu
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-4 w-4" />
+                                Ievadīt rezultātu
+                              </>
                             )}
-                          </div>
+                          </Button>
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+
+                        <AnimatePresence>
+                          {expandedGame === index && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.25 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-4 flex flex-col gap-3 border-t border-white/30 pt-4">
+                                <p className="text-center text-sm font-medium text-muted-foreground">
+                                  Setu rezultāti
+                                </p>
+                                {game.result?.sets.map((set, setIndex) => (
+                                  <div
+                                    key={setIndex}
+                                    className="flex items-center justify-center gap-2"
+                                  >
+                                    <span className="w-16 text-sm font-medium">
+                                      {setIndex + 1}. sets
+                                    </span>
+                                    <Input
+                                      type="number"
+                                      placeholder="0"
+                                      value={set.team1Score || ""}
+                                      onChange={(e) =>
+                                        handleSetScoreChange(
+                                          index,
+                                          setIndex,
+                                          1,
+                                          e.target.value
+                                        )
+                                      }
+                                      className="h-10 w-16 text-center text-lg font-semibold"
+                                    />
+                                    <span className="text-lg font-bold">:</span>
+                                    <Input
+                                      type="number"
+                                      placeholder="0"
+                                      value={set.team2Score || ""}
+                                      onChange={(e) =>
+                                        handleSetScoreChange(
+                                          index,
+                                          setIndex,
+                                          2,
+                                          e.target.value
+                                        )
+                                      }
+                                      className="h-10 w-16 text-center text-lg font-semibold"
+                                    />
+                                    {game.result!.sets.length > 1 && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() =>
+                                          removeSet(index, setIndex)
+                                        }
+                                        className="h-9 w-9 cursor-pointer text-destructive hover:text-destructive"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                ))}
+                                {(!game.result?.sets.length ||
+                                  game.result.sets.length < 3) && (
+                                    <div className="flex justify-center">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => addSet(index)}
+                                        className="cursor-pointer rounded-xl"
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                        Pievienot setu
+                                      </Button>
+                                    </div>
+                                  )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
               </div>
 
-              <div className="flex gap-2">
-                {allGamesHaveResults() && (
+              {allGamesHaveResults() && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex justify-center pt-2"
+                >
                   <Button
                     onClick={handleViewWinners}
-                    className="bg-green-600 text-white hover:bg-green-700 h-12 px-8 text-lg"
+                    size="lg"
+                    className="cursor-pointer rounded-xl bg-emerald-500 font-semibold text-[#0a0e1a] shadow-lg transition-all duration-200 hover:bg-emerald-400"
                   >
+                    <Trophy className="h-5 w-5" />
                     Apskatīt uzvarētājus
                   </Button>
-                )}
-                {/* <Button
-                  onClick={handleReset}
-                  variant="outline"
-                  className="h-12 px-8 text-lg"
-                >
-                  Jauna spēle
-                </Button> */}
-              </div>
-            </div>
+                </motion.div>
+              )}
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
       </div>
-      <div className="border-t border-black/20">
-        <Footer />
-      </div>
-    </div>
+    </PageShell>
   );
 };
+
+function StatBox({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <div className="rounded-xl bg-white/[0.04] px-3 py-2 ring-1 ring-white/[0.06]">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <div className={cn("text-lg font-bold", color)}>{value}</div>
+    </div>
+  );
+}
+
+function TeamName({
+  names,
+  isWinner,
+  color,
+}: {
+  names: string[];
+  isWinner?: boolean;
+  color: "cyan" | "orange";
+}) {
+  return (
+    <div
+      className={cn(
+        "max-w-[40%] text-center text-sm font-semibold md:text-base",
+        isWinner ? "text-emerald-400" : color === "cyan" ? "text-cyan-400" : "text-orange-400"
+      )}
+    >
+      {names.join(" & ")}
+    </div>
+  );
+}
 
 export default Play;
