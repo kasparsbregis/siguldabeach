@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import PageShell from "../components/PageShell";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,9 +22,16 @@ import {
 } from "@/components/ui/field";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  MoveLeft,
   Trophy,
   Medal,
   Award,
@@ -37,6 +44,8 @@ import {
   UserPlus,
   CheckCircle2,
   Volleyball,
+  AlertTriangle,
+  Swords,
 } from "lucide-react";
 import { FadeIn, StaggerList, StaggerItem } from "@/components/motion";
 import { motion, AnimatePresence } from "framer-motion";
@@ -46,6 +55,12 @@ import {
   loadPlaySession,
   savePlaySession,
 } from "@/lib/play-session";
+import {
+  applyTieResolutions,
+  areTieResolutionsComplete,
+  findTieGroups,
+  type TieGroup,
+} from "@/lib/tournament-ranking";
 
 interface PlayerAssignment {
   name: string;
@@ -131,6 +146,9 @@ interface PlaySessionSnapshot {
   showResults: boolean;
   expandedGame: number | null;
   showWinners: boolean;
+  tieResolutions?: Record<string, string[]>;
+  tiesResolved?: boolean;
+  tournamentSaved?: boolean;
 }
 
 const calculatePlayerStatsFrom = (
@@ -222,6 +240,7 @@ const scrollPageToTop = (anchor?: HTMLElement | null) => {
 const Play = () => {
   const pageTopRef = useRef<HTMLDivElement>(null);
   const shouldScrollToTopRef = useRef(false);
+  const tournamentSavedRef = useRef(false);
   const [players, setPlayers] = useState(DEFAULT_PLAYERS);
   const [assignments, setAssignments] = useState<PlayerAssignment[]>([]);
   const [games, setGames] = useState<Game[]>([]);
@@ -231,6 +250,11 @@ const Play = () => {
   const [playerStats, setPlayerStats] = useState<PlayerStats[]>([]);
   const [showFormErrors, setShowFormErrors] = useState(false);
   const [isSessionReady, setIsSessionReady] = useState(false);
+  const [tieGroups, setTieGroups] = useState<TieGroup[]>([]);
+  const [tieResolutions, setTieResolutions] = useState<Record<string, string[]>>(
+    {}
+  );
+  const [tiesResolved, setTiesResolved] = useState(false);
 
   const playerKeys = ["player1", "player2", "player3", "player4"] as const;
 
@@ -357,37 +381,130 @@ const Play = () => {
         game.result.winningTeam !== null
     );
 
+  const saveTournamentToDb = async (stats: PlayerStats[]) => {
+    const playerNames = [
+      players.player1.trim(),
+      players.player2.trim(),
+      players.player3.trim(),
+      players.player4.trim(),
+    ];
+    const response = await fetch("/api/save-tournament", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerNames,
+        playerStats: stats,
+        games: games.map((game) => ({
+          gameNumber: game.gameNumber,
+          team1: game.team1,
+          team2: game.team2,
+          result: game.result,
+        })),
+      }),
+    });
+    const data = await response.json();
+    if (data.success) toast.success("Turnīrs ir saglabāts datubāzē!");
+    else toast.error("Kļūda saglabājot turnīru!");
+    return data.success;
+  };
+
   const handleViewWinners = async () => {
+    if (tournamentSavedRef.current) {
+      setShowWinners(true);
+      return;
+    }
+
     const stats = calculatePlayerStatsFrom(assignments, games);
+    const groups = findTieGroups(stats);
+
     setPlayerStats(stats);
+    setTieGroups(groups);
+    setTieResolutions({});
+    setTiesResolved(groups.length === 0);
     shouldScrollToTopRef.current = true;
     setShowWinners(true);
-    window.setTimeout(() => {
-      if (!shouldScrollToTopRef.current) return;
-      shouldScrollToTopRef.current = false;
-      scrollPageToTop(pageTopRef.current);
-    }, 500);
 
+    if (groups.length > 0) {
+      toast.warning(
+        "Vienādi rezultāti! Spēlētājiem jāizspēlē izšķirības spēle 1 pret 1."
+      );
+      return;
+    }
+
+    tournamentSavedRef.current = true;
     try {
-      const playerNames = [
-        players.player1.trim(),
-        players.player2.trim(),
-        players.player3.trim(),
-        players.player4.trim(),
-      ];
-      const response = await fetch("/api/save-tournament", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerNames, playerStats: stats }),
-      });
-      const data = await response.json();
-      if (data.success) toast.success("Turnīrs ir saglabāts datubāzē!");
-      else toast.error("Kļūda saglabājot turnīru!");
+      await saveTournamentToDb(stats);
     } catch (error) {
       console.error("Error saving tournament:", error);
       toast.error("Kļūda saglabājot turnīru!");
+      tournamentSavedRef.current = false;
     }
   };
+
+  const updateTieSlot = (
+    groupKey: string,
+    slotIndex: number,
+    playerName: string,
+    groupSize: number
+  ) => {
+    setTieResolutions((prev) => {
+      const current = [...(prev[groupKey] ?? Array(groupSize).fill(""))];
+      for (let i = 0; i < current.length; i++) {
+        if (current[i] === playerName) current[i] = "";
+      }
+      current[slotIndex] = playerName;
+      return { ...prev, [groupKey]: current };
+    });
+  };
+
+  const setTwoPlayerTieWinner = (group: TieGroup, winnerName: string) => {
+    const loser = group.players.find((player) => player.name !== winnerName);
+    if (!loser) return;
+
+    setTieResolutions((prev) => ({
+      ...prev,
+      [group.key]: [winnerName, loser.name],
+    }));
+  };
+
+  const handleConfirmTiebreakers = async () => {
+    if (!areTieResolutionsComplete(tieGroups, tieResolutions)) {
+      toast.error("Norādi vietas visiem vienādos rezultātos spēlētājiem");
+      return;
+    }
+
+    const finalStats = applyTieResolutions(
+      playerStats,
+      tieGroups,
+      tieResolutions
+    );
+    setPlayerStats(finalStats);
+    setTiesResolved(true);
+    setTieGroups([]);
+
+    try {
+      tournamentSavedRef.current = true;
+      const saved = await saveTournamentToDb(finalStats);
+      if (!saved) tournamentSavedRef.current = false;
+    } catch (error) {
+      console.error("Error saving tournament:", error);
+      toast.error("Kļūda saglabājot turnīru!");
+      tournamentSavedRef.current = false;
+    }
+  };
+
+  const displayStats = useMemo(() => {
+    if (tieGroups.length === 0 || tiesResolved) return playerStats;
+    if (areTieResolutionsComplete(tieGroups, tieResolutions)) {
+      return applyTieResolutions(playerStats, tieGroups, tieResolutions);
+    }
+    return playerStats;
+  }, [playerStats, tieGroups, tieResolutions, tiesResolved]);
+
+  const tiesNeedResolution = tieGroups.length > 0 && !tiesResolved;
+  const canConfirmTiebreakers =
+    tiesNeedResolution &&
+    areTieResolutionsComplete(tieGroups, tieResolutions);
 
   const handleStartGame = () => {
     const playerNames = [
@@ -414,6 +531,7 @@ const Play = () => {
   };
 
   const handleReset = () => {
+    tournamentSavedRef.current = false;
     clearPlaySession();
     setPlayers(DEFAULT_PLAYERS);
     setAssignments([]);
@@ -422,6 +540,9 @@ const Play = () => {
     setExpandedGame(null);
     setShowWinners(false);
     setPlayerStats([]);
+    setTieGroups([]);
+    setTieResolutions({});
+    setTiesResolved(false);
   };
 
   useEffect(() => {
@@ -434,9 +555,21 @@ const Play = () => {
       setExpandedGame(saved.expandedGame);
       setShowWinners(saved.showWinners);
       if (saved.showWinners && saved.assignments.length > 0) {
+        const stats = calculatePlayerStatsFrom(saved.assignments, saved.games);
+        const groups = findTieGroups(stats);
+        const restoredResolutions = saved.tieResolutions ?? {};
+        const restoredTiesResolved = saved.tiesResolved ?? false;
+        const restoredSaved = saved.tournamentSaved ?? false;
+
         setPlayerStats(
-          calculatePlayerStatsFrom(saved.assignments, saved.games)
+          restoredTiesResolved && groups.length > 0
+            ? applyTieResolutions(stats, groups, restoredResolutions)
+            : stats
         );
+        setTieGroups(restoredSaved ? [] : groups);
+        setTieResolutions(restoredResolutions);
+        setTiesResolved(restoredTiesResolved || groups.length === 0);
+        tournamentSavedRef.current = restoredSaved;
       }
     }
     setIsSessionReady(true);
@@ -452,6 +585,9 @@ const Play = () => {
       showResults,
       expandedGame,
       showWinners,
+      tieResolutions,
+      tiesResolved,
+      tournamentSaved: tournamentSavedRef.current,
     });
   }, [
     isSessionReady,
@@ -461,6 +597,8 @@ const Play = () => {
     showResults,
     expandedGame,
     showWinners,
+    tieResolutions,
+    tiesResolved,
   ]);
 
   const toggleGameExpansion = (gameIndex: number) => {
@@ -476,7 +614,7 @@ const Play = () => {
         <FadeIn className="flex flex-col gap-6 md:gap-7">
           <div className="flex items-center gap-3">
             <span className="h-8 w-0.5 shrink-0 rounded-full bg-gradient-to-b from-primary to-secondary" />
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gradient-neon md:text-sm">
+            <div className="text-eyebrow flex items-center gap-2 text-gradient-neon md:text-sm">
               <Volleyball className="size-4" />
               Sigulda Beach · Turnīrs
             </div>
@@ -487,7 +625,7 @@ const Play = () => {
               <Volleyball className="size-6 text-primary md:size-7" />
             </div>
             <div className="flex flex-col gap-2 pt-0.5">
-              <h1 className="text-3xl font-bold uppercase tracking-tight md:text-4xl lg:text-[2.75rem]">
+              <h1 className="font-heading text-3xl font-bold uppercase tracking-tight md:text-4xl lg:text-[2.75rem]">
                 <span className="text-gradient-neon">Spēlēt</span>
               </h1>
               <p className="max-w-lg text-base leading-relaxed text-muted-foreground md:text-lg">
@@ -632,8 +770,152 @@ const Play = () => {
                 <h2 className="text-2xl font-bold">Uzvarētāju statistika</h2>
               </div>
 
+              {tiesNeedResolution && (
+                <Card className="border-amber-500/30 bg-amber-500/10">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-400" />
+                      <div>
+                        <CardTitle className="text-base text-amber-200">
+                          Vienādi rezultāti
+                        </CardTitle>
+                        <CardDescription className="text-amber-100/80">
+                          Šiem spēlētājiem jāizspēlē 1v1,
+                          lai noteiktu augstāku vietu reitingā.
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-4">
+                    {tieGroups.map((group) => (
+                      <div
+                        key={group.key}
+                        className="rounded-xl border border-amber-500/20 bg-black/20 p-4"
+                      >
+                        <div className="mb-3 flex items-center gap-2 text-sm font-medium text-amber-200">
+                          <Swords className="size-4" />
+                          Vietas #{group.positionStart}
+                          {group.positionEnd !== group.positionStart &&
+                            `–#${group.positionEnd}`}
+                        </div>
+
+                        <div className="mb-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                          {group.players.map((player) => (
+                            <Badge
+                              key={player.name}
+                              variant="outline"
+                              className="border-amber-500/30"
+                            >
+                              {player.name} · {player.gamesWon}G / {player.setsWon}
+                              S / {player.ratio}
+                            </Badge>
+                          ))}
+                        </div>
+
+                        {group.players.length === 2 ? (
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            {group.players.map((player) => (
+                              <Button
+                                key={player.name}
+                                type="button"
+                                variant={
+                                  tieResolutions[group.key]?.[0] === player.name
+                                    ? "default"
+                                    : "outline"
+                                }
+                                className="cursor-pointer flex-1 hover:text-white"
+                                onClick={() =>
+                                  setTwoPlayerTieWinner(group, player.name)
+                                }
+                              >
+                                {player.name} augstāk
+                              </Button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-3">
+                            {Array.from(
+                              { length: group.players.length },
+                              (_, slotIndex) => {
+                                const position = group.positionStart + slotIndex;
+                                return (
+                                  <div
+                                    key={`${group.key}-${position}`}
+                                    className="flex items-center gap-3"
+                                  >
+                                    <span className="w-20 text-sm font-medium text-muted-foreground">
+                                      #{position} vieta
+                                    </span>
+                                    <Select
+                                      value={
+                                        tieResolutions[group.key]?.[slotIndex] ||
+                                        undefined
+                                      }
+                                      onOpenChange={(open) => {
+                                        if (!open) return;
+                                        const scrollY = window.scrollY;
+                                        const restore = () =>
+                                          window.scrollTo(0, scrollY);
+                                        restore();
+                                        requestAnimationFrame(restore);
+                                        requestAnimationFrame(() =>
+                                          requestAnimationFrame(restore)
+                                        );
+                                      }}
+                                      onValueChange={(value) =>
+                                        updateTieSlot(
+                                          group.key,
+                                          slotIndex,
+                                          value,
+                                          group.players.length
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger className="w-full flex-1">
+                                        <SelectValue placeholder="Izvēlies spēlētāju" />
+                                      </SelectTrigger>
+                                      <SelectContent
+                                        position="popper"
+                                        side="bottom"
+                                        align="start"
+                                      >
+                                        <SelectGroup>
+                                          {group.players.map((player) => (
+                                            <SelectItem
+                                              key={player.name}
+                                              value={player.name}
+                                            >
+                                              {player.name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                );
+                              }
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    <Button
+                      type="button"
+                      size="lg"
+                      disabled={!canConfirmTiebreakers}
+                      onClick={handleConfirmTiebreakers}
+                      className="w-full cursor-pointer rounded-xl bg-emerald-500 font-semibold text-[#0a0e1a] hover:bg-emerald-400 disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="size-5" />
+                      Apstiprināt vietas un saglabāt
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
               <StaggerList className="flex flex-col gap-4">
-                {playerStats.map((stat) => {
+                {displayStats.map((stat) => {
                   const ranking = getRankingDisplay(stat.position);
                   const RankIcon = ranking.icon;
                   return (
@@ -695,21 +977,13 @@ const Play = () => {
                 })}
               </StaggerList>
 
-              <div className="flex flex-wrap justify-center gap-3">
-                <Button
-                  onClick={() => setShowWinners(false)}
-                  variant="glass"
-                  size="lg"
-                  className="cursor-pointer w-full sm:w-auto"
-                >
-                  <MoveLeft className="h-4 w-4" />
-                  Atpakaļ uz spēlēm
-                </Button>
+              <div className="flex justify-center">
                 <Button
                   onClick={handleReset}
                   variant="outline"
                   size="lg"
-                  className="cursor-pointer rounded-xl w-full sm:w-auto"
+                  disabled={tiesNeedResolution}
+                  className="cursor-pointer w-full rounded-xl sm:w-auto disabled:opacity-50"
                 >
                   <RotateCcw className="h-4 w-4" />
                   Jauna spēle
@@ -866,7 +1140,7 @@ const Play = () => {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => addSet(index)}
-                                        className="cursor-pointer rounded-xl"
+                                        className="cursor-pointer rounded-xl hover:text-white"
                                       >
                                         <Plus className="h-4 w-4" />
                                         Pievienot setu

@@ -9,7 +9,7 @@ const Footer = () => {
       <div className="mx-auto max-w-7xl px-4 py-10 md:px-6">
         <div className="grid gap-8 sm:grid-cols-3">
           <div>
-            <h3 className="font-[family-name:var(--font-barlow-condensed)] text-lg font-bold text-gradient-neon">
+            <h3 className="font-heading text-lg font-bold text-gradient-neon">
               King of the Beach
             </h3>
             <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
@@ -38,19 +38,6 @@ const Footer = () => {
                 </li>
               ))}
             </ul>
-          </div>
-
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground">
-              Par projektu
-            </h4>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Izstrādāja{" "}
-              <span className="font-medium text-foreground">Kaspars Breģis</span>
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground/70">
-              © {new Date().getFullYear()} Sigulda Beach
-            </p>
           </div>
         </div>
 

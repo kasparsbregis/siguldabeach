@@ -2,6 +2,11 @@ import { sql } from "@vercel/postgres";
 import fs from "fs";
 import path from "path";
 import { getCurrentSeasonYear } from "@/lib/season";
+import type {
+  SavedTournamentGame,
+  TournamentGameRecord,
+  TournamentSetResult,
+} from "@/lib/tournament-types";
 
 let seasonSchemaReady: Promise<void> | null = null;
 
@@ -31,6 +36,41 @@ async function rebuildSeasonLeaderboardFromPoints() {
     FROM tournament_player_points
     WHERE season_year IS NOT NULL
     GROUP BY player_name, season_year
+  `;
+}
+
+export async function rebuildSeasonLeaderboardForYear(seasonYear: number) {
+  await ensureSeasonSchema();
+
+  await sql`
+    DELETE FROM season_leaderboard
+    WHERE season_year = ${seasonYear}
+  `;
+
+  await sql`
+    INSERT INTO season_leaderboard (
+      player_name,
+      season_year,
+      total_player_points,
+      tournaments_played,
+      first_places,
+      second_places,
+      third_places,
+      fourth_places
+    )
+    SELECT
+      player_name,
+      season_year,
+      SUM(player_points)::INTEGER,
+      COUNT(*)::INTEGER,
+      SUM(CASE WHEN placement = 1 THEN 1 ELSE 0 END)::INTEGER,
+      SUM(CASE WHEN placement = 2 THEN 1 ELSE 0 END)::INTEGER,
+      SUM(CASE WHEN placement = 3 THEN 1 ELSE 0 END)::INTEGER,
+      SUM(CASE WHEN placement = 4 THEN 1 ELSE 0 END)::INTEGER
+    FROM tournament_player_points tpp
+    INNER JOIN tournament_results tr ON tr.id = tpp.tournament_result_id
+    WHERE tpp.season_year = ${seasonYear}
+    GROUP BY tpp.player_name, tpp.season_year
   `;
 }
 
@@ -105,11 +145,68 @@ interface PlayerStats {
   position: number;
 }
 
+function parseTournamentSets(value: unknown): TournamentSetResult[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((set) => {
+      if (!set || typeof set !== "object") return null;
+      const row = set as Record<string, unknown>;
+      return {
+        team1Score: Number(row.team1Score ?? 0),
+        team2Score: Number(row.team2Score ?? 0),
+      };
+    })
+    .filter((set): set is TournamentSetResult => set !== null);
+}
+
+async function saveTournamentGames(
+  tournamentId: number,
+  games: SavedTournamentGame[]
+) {
+  for (const game of games) {
+    if (
+      !game.result ||
+      game.team1.length !== 2 ||
+      game.team2.length !== 2 ||
+      game.result.winningTeam === null
+    ) {
+      continue;
+    }
+
+    await sql`
+      INSERT INTO tournament_games (
+        tournament_result_id,
+        game_number,
+        team1_player1,
+        team1_player2,
+        team2_player1,
+        team2_player2,
+        match_result,
+        winning_team,
+        sets
+      )
+      VALUES (
+        ${tournamentId},
+        ${game.gameNumber},
+        ${game.team1[0]},
+        ${game.team1[1]},
+        ${game.team2[0]},
+        ${game.team2[1]},
+        ${game.result.matchResult},
+        ${game.result.winningTeam},
+        ${JSON.stringify(game.result.sets)}
+      )
+    `;
+  }
+}
+
 // Save tournament results to database
 export async function saveTournamentResults(
   playerNames: string[],
   playerStats: PlayerStats[],
-  seasonYear = getCurrentSeasonYear()
+  seasonYear = getCurrentSeasonYear(),
+  games: SavedTournamentGame[] = []
 ) {
   try {
     await ensureSeasonSchema();
@@ -157,6 +254,10 @@ export async function saveTournamentResults(
           ${player.gamesWon}, ${player.setsWon}, ${player.ratio}, CURRENT_DATE, ${seasonYear}
         )
       `;
+    }
+
+    if (games.length > 0) {
+      await saveTournamentGames(tournamentId, games);
     }
 
     await updateSeasonLeaderboard(sortedStats, seasonYear);
@@ -240,11 +341,7 @@ export async function getAvailableSeasonYears() {
 
   const result = await sql`
     SELECT DISTINCT season_year
-    FROM (
-      SELECT season_year FROM tournament_results
-      UNION
-      SELECT season_year FROM season_leaderboard
-    ) AS seasons
+    FROM tournament_results
     WHERE season_year IS NOT NULL
     ORDER BY season_year DESC
   `;
@@ -259,14 +356,41 @@ export async function getAvailableSeasonYears() {
   return years.sort((a, b) => b - a);
 }
 
+async function cleanupOrphanPlayerPoints() {
+  await sql`
+    DELETE FROM tournament_player_points tpp
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM tournament_results tr
+      WHERE tr.id = tpp.tournament_result_id
+    )
+  `;
+}
+
 export async function getSeasonLeaderboard(seasonYear = getCurrentSeasonYear()) {
   try {
     await ensureSeasonSchema();
+    await cleanupOrphanPlayerPoints();
 
     const result = await sql`
-      SELECT * FROM season_leaderboard
-      WHERE season_year = ${seasonYear}
-      ORDER BY total_player_points DESC, tournaments_played ASC
+      SELECT
+        ROW_NUMBER() OVER (
+          ORDER BY SUM(tpp.player_points) DESC, COUNT(*) ASC, tpp.player_name ASC
+        )::INTEGER AS id,
+        tpp.player_name,
+        tpp.season_year,
+        SUM(tpp.player_points)::INTEGER AS total_player_points,
+        COUNT(*)::INTEGER AS tournaments_played,
+        SUM(CASE WHEN tpp.placement = 1 THEN 1 ELSE 0 END)::INTEGER AS first_places,
+        SUM(CASE WHEN tpp.placement = 2 THEN 1 ELSE 0 END)::INTEGER AS second_places,
+        SUM(CASE WHEN tpp.placement = 3 THEN 1 ELSE 0 END)::INTEGER AS third_places,
+        SUM(CASE WHEN tpp.placement = 4 THEN 1 ELSE 0 END)::INTEGER AS fourth_places,
+        MAX(tpp.date) AS updated_at
+      FROM tournament_player_points tpp
+      INNER JOIN tournament_results tr ON tr.id = tpp.tournament_result_id
+      WHERE tpp.season_year = ${seasonYear}
+      GROUP BY tpp.player_name, tpp.season_year
+      ORDER BY total_player_points DESC, tournaments_played ASC, tpp.player_name ASC
     `;
     return result.rows;
   } catch (error) {
@@ -283,14 +407,97 @@ export async function getTournamentHistory(
     await ensureSeasonSchema();
 
     const result = await sql`
-      SELECT * FROM tournament_results
-      WHERE season_year = ${seasonYear}
-      ORDER BY date DESC, created_at DESC
+      SELECT *
+      FROM (
+        SELECT
+          tr.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY tr.season_year
+            ORDER BY tr.date ASC, tr.created_at ASC, tr.id ASC
+          )::INTEGER AS season_number
+        FROM tournament_results tr
+        WHERE tr.season_year = ${seasonYear}
+      ) ranked
+      ORDER BY date DESC, created_at DESC, id DESC
       LIMIT ${limit}
     `;
     return result.rows;
   } catch (error) {
     console.error("Error getting tournament history:", error);
+    throw error;
+  }
+}
+
+export async function getTournamentById(tournamentId: number) {
+  try {
+    await ensureSeasonSchema();
+
+    const result = await sql`
+      SELECT * FROM tournament_results
+      WHERE id = ${tournamentId}
+      LIMIT 1
+    `;
+
+    return result.rows[0] ?? null;
+  } catch (error) {
+    console.error("Error getting tournament:", error);
+    throw error;
+  }
+}
+
+export async function getTournamentGames(
+  tournamentId: number
+): Promise<TournamentGameRecord[]> {
+  try {
+    await ensureSeasonSchema();
+
+    const result = await sql`
+      SELECT *
+      FROM tournament_games
+      WHERE tournament_result_id = ${tournamentId}
+      ORDER BY game_number ASC
+    `;
+
+    return result.rows.map((row) => ({
+      id: Number(row.id),
+      tournament_result_id: Number(row.tournament_result_id),
+      game_number: Number(row.game_number),
+      team1_player1: String(row.team1_player1),
+      team1_player2: String(row.team1_player2),
+      team2_player1: String(row.team2_player1),
+      team2_player2: String(row.team2_player2),
+      match_result: String(row.match_result),
+      winning_team: Number(row.winning_team),
+      sets: parseTournamentSets(row.sets),
+    }));
+  } catch (error) {
+    console.error("Error getting tournament games:", error);
+    throw error;
+  }
+}
+
+export async function deleteTournament(tournamentId: number) {
+  try {
+    await ensureSeasonSchema();
+
+    const tournament = await getTournamentById(tournamentId);
+    if (!tournament) {
+      return { success: false, error: "Tournament not found" };
+    }
+
+    const seasonYear = Number(tournament.season_year);
+
+    await sql`
+      DELETE FROM tournament_results
+      WHERE id = ${tournamentId}
+    `;
+
+    await cleanupOrphanPlayerPoints();
+    await rebuildSeasonLeaderboardForYear(seasonYear);
+
+    return { success: true, seasonYear };
+  } catch (error) {
+    console.error("Error deleting tournament:", error);
     throw error;
   }
 }

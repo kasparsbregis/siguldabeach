@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed } from "next/font/google";
+import { Barlow, Oswald } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
 const barlow = Barlow({
   variable: "--font-barlow",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600"],
 });
 
-const barlowCondensed = Barlow_Condensed({
-  variable: "--font-barlow-condensed",
+const oswald = Oswald({
+  variable: "--font-oswald",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -33,7 +33,8 @@ export default function RootLayout({
   return (
     <html lang="lv" className="dark" suppressHydrationWarning={true}>
       <body
-        className={`${barlow.variable} ${barlowCondensed.variable} antialiased`}
+        className={`${barlow.variable} ${oswald.variable} font-body antialiased`}
+        suppressHydrationWarning
       >
         {children}
         <Toaster richColors position="top-center" theme="dark" />

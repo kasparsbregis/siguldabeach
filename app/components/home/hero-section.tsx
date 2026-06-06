@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useMounted } from "@/lib/use-mounted";
 
 const stats = [
   { icon: Users, label: "Spēlētāji", value: "4" },
@@ -22,7 +23,9 @@ const stats = [
 ];
 
 export function HeroSection() {
+  const mounted = useMounted();
   const reduceMotion = useReducedMotion();
+  const skipEnterMotion = !mounted || !!reduceMotion;
 
   return (
     <section className="relative -mt-2 pb-8 md:pb-14 lg:pb-16">
@@ -36,23 +39,23 @@ export function HeroSection() {
       <div className="relative z-10 grid items-center gap-10 pt-8 md:pt-14 lg:pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 xl:gap-20">
         <div className="flex flex-col items-center gap-7 text-center md:items-start md:gap-8 md:text-left">
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+            initial={skipEnterMotion ? false : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
             className="flex items-center justify-center gap-3 md:justify-start"
           >
             <span className="h-8 w-0.5 shrink-0 rounded-full bg-gradient-to-b from-primary to-secondary" />
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-gradient-neon md:text-sm">
+            <div className="text-eyebrow flex items-center gap-2 text-gradient-neon md:text-sm">
               <Volleyball />
               Sigulda Beach · 2026
             </div>
           </motion.div>
 
           <motion.h1
-            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+            initial={skipEnterMotion ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.08 }}
-            className="text-[clamp(2.75rem,7.5vw,5.25rem)] font-bold uppercase leading-[0.9] tracking-tighter"
+            className="text-display text-[clamp(2.75rem,7.5vw,5.25rem)]"
           >
             <span className="mx-auto block w-fit text-foreground/80 md:mx-0">
               King
@@ -66,7 +69,7 @@ export function HeroSection() {
           </motion.h1>
 
           <motion.p
-            initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+            initial={skipEnterMotion ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.16 }}
             className="mx-auto max-w-lg text-base leading-relaxed text-muted-foreground md:mx-0 md:text-lg"
@@ -76,7 +79,7 @@ export function HeroSection() {
           </motion.p>
 
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+            initial={skipEnterMotion ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.24 }}
             className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:flex-wrap"
@@ -105,7 +108,7 @@ export function HeroSection() {
           </motion.div>
 
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+            initial={skipEnterMotion ? false : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.32 }}
             className="grid w-full grid-cols-3 overflow-hidden rounded-2xl border border-border/60 bg-card/20"
@@ -119,7 +122,7 @@ export function HeroSection() {
                 )}
               >
                 <Icon className="text-primary/80" />
-                <span className="font-[family-name:var(--font-barlow-condensed)] text-2xl font-bold tabular-nums md:text-3xl">
+                <span className="font-heading text-2xl font-bold tabular-nums md:text-3xl">
                   {value}
                 </span>
                 <span className="text-[0.65rem] uppercase tracking-wider text-muted-foreground md:text-xs">

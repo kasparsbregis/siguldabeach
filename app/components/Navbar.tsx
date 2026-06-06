@@ -18,13 +18,13 @@ const Navbar = () => {
   const pathname = usePathname();
 
   return (
-    <motion.header
-      initial={{ opacity: 0, y: -12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#0a0e1a]/80 backdrop-blur-xl"
-    >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-6">
+    <header className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#0a0e1a]/85 backdrop-blur-xl supports-[backdrop-filter]:bg-[#0a0e1a]/75">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-6"
+      >
         <Link
           href="/"
           className="group flex cursor-pointer items-center gap-3"
@@ -40,7 +40,7 @@ const Navbar = () => {
             <div className="absolute inset-0 rounded-full bg-cyan-400/10 opacity-0 blur-md transition-opacity duration-200 group-hover:opacity-100" />
           </div>
           <div className="hidden sm:block">
-            <span className="block font-[family-name:var(--font-barlow-condensed)] text-base font-bold tracking-tight text-foreground">
+            <span className="font-heading block text-base font-bold tracking-tight text-foreground">
               King of the Beach
             </span>
             <span className="block text-[10px] uppercase tracking-[0.2em] text-cyan-400/80">
@@ -106,8 +106,8 @@ const Navbar = () => {
             </Button>
           </Link>
         </div>
-      </div>
-    </motion.header>
+      </motion.div>
+    </header>
   );
 };
 

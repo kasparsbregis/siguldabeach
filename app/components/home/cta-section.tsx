@@ -21,7 +21,7 @@ export function CTASection() {
             <Volleyball className="w-3 h-3" />
             Sāc tagad
           </Badge>
-          <h2 className="text-2xl font-bold uppercase tracking-tight md:text-3xl">
+          <h2 className="font-heading text-2xl font-bold uppercase tracking-tight md:text-3xl">
             Gatavs kļūt par{" "}
             <span className="text-gradient-neon">pludmales karali</span>?
           </h2>

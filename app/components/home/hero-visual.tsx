@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Crown } from "lucide-react";
 import Image from "next/image";
+import { useMounted } from "@/lib/use-mounted";
 
 const PLAYERS = [
   { id: 1, label: "P1", x: 50, y: 8 },
@@ -47,9 +48,11 @@ interface HeroVisualProps {
 }
 
 export function HeroVisual({ reduceMotion }: HeroVisualProps) {
+  const mounted = useMounted();
+
   return (
     <motion.div
-      initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+      initial={!mounted || reduceMotion ? false : { opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.55, delay: 0.12 }}
       className="relative mx-auto flex aspect-square w-full max-w-[20rem] items-center justify-center sm:max-w-[22rem] md:max-w-[26rem] lg:max-w-none lg:justify-self-end"
@@ -147,7 +150,7 @@ export function HeroVisual({ reduceMotion }: HeroVisualProps) {
                 textAnchor="middle"
                 fill="rgba(34, 211, 238, 0.9)"
                 fontSize="2.6"
-                fontFamily="var(--font-barlow-condensed), sans-serif"
+                fontFamily="var(--font-oswald), system-ui, sans-serif"
                 fontWeight="700"
               >
                 {player.id}

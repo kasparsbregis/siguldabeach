@@ -14,6 +14,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
 import { UserPlus, Shuffle, Trophy, CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
+
+function getWinningTeam(score: string): 1 | 2 | null {
+  const [team1Sets, team2Sets] = score.split(":").map(Number);
+  if (team1Sets > team2Sets) return 1;
+  if (team2Sets > team1Sets) return 2;
+  return null;
+}
 
 const players = ["Anna", "Māris", "Līga", "Jānis"];
 
@@ -50,10 +58,10 @@ export function TournamentPreview() {
         transition={{ duration: 0.5 }}
         className="mb-10 text-center"
       >
-        <Badge variant="secondary" className="mb-4">
+        <Badge variant="outline" className="mb-4 gap-1.5 px-2 py-1 w-fit">
           Interaktīva demonstrācija
         </Badge>
-        <h2 className="text-3xl font-bold uppercase tracking-tight md:text-4xl">
+        <h2 className="font-heading text-3xl font-bold uppercase tracking-tight md:text-4xl">
           Turnīrs <span className="text-gradient-neon">dzīvē</span>
         </h2>
         <p className="mx-auto mt-3 max-w-md text-muted-foreground">
@@ -86,7 +94,7 @@ export function TournamentPreview() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <CardHeader>
+              <CardHeader className="mb-4">
                 <CardTitle>Spēlētāju ievade</CardTitle>
                 <CardDescription>
                   Ievadi 4 vārdus un sāc turnīru
@@ -120,7 +128,7 @@ export function TournamentPreview() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <CardHeader>
+              <CardHeader className="mb-4">
                 <CardTitle>Spēļu izloze</CardTitle>
                 <CardDescription>
                   Sistēma automātiski izveido 3 spēles
@@ -142,8 +150,6 @@ export function TournamentPreview() {
                   </motion.div>
                 ))}
                 <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                   className="mx-auto mt-2 flex size-10 items-center justify-center rounded-full bg-primary/15"
                 >
                   <Shuffle className="size-5 text-primary" />
@@ -159,44 +165,68 @@ export function TournamentPreview() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <CardHeader>
+              <CardHeader className="mb-4">
                 <CardTitle>Spēļu rezultāti</CardTitle>
                 <CardDescription>
                   Ievadi setus un noskaidro uzvarētāju
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
-                {games.map((game, i) => (
-                  <motion.div
-                    key={game.t1}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.12 }}
-                    className="rounded-xl border border-border bg-muted/20 p-4"
-                  >
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        {i + 1}. spēle
-                      </span>
-                      <Badge variant="outline">{game.score}</Badge>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-sm font-medium">
-                      <span className="truncate text-primary">{game.t1}</span>
-                      <span className="text-muted-foreground">vs</span>
-                      <span className="truncate text-right text-secondary">
-                        {game.t2}
-                      </span>
-                    </div>
-                  </motion.div>
-                ))}
+                {games.map((game, i) => {
+                  const winner = getWinningTeam(game.score);
+
+                  return (
+                    <motion.div
+                      key={game.t1}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.12 }}
+                      className="rounded-xl border border-border bg-muted/20 p-4"
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          {i + 1}. spēle
+                        </span>
+                        <Badge variant="outline">{game.score}</Badge>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm font-medium">
+                        <span
+                          className={cn(
+                            "truncate",
+                            winner === 1
+                              ? "text-emerald-400"
+                              : winner === 2
+                                ? "text-rose-400"
+                                : "text-foreground"
+                          )}
+                        >
+                          {game.t1}
+                        </span>
+                        <span className="text-muted-foreground">vs</span>
+                        <span
+                          className={cn(
+                            "truncate text-right",
+                            winner === 2
+                              ? "text-emerald-400"
+                              : winner === 1
+                                ? "text-rose-400"
+                                : "text-foreground"
+                          )}
+                        >
+                          {game.t2}
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
                 <motion.div
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: 0.4 }}
-                  className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-secondary/30 bg-secondary/10 py-3"
+                  className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-yellow-300/50 bg-yellow-300/10 py-3"
                 >
-                  <Trophy className="size-5 text-secondary" />
-                  <span className="font-bold">Uzvarētājs: Anna</span>
+                  <Trophy className="size-5 text-yellow-300" />
+                  <span className="font-bold text-yellow-300">Uzvarētājs: Anna</span>
                 </motion.div>
               </CardContent>
             </motion.div>

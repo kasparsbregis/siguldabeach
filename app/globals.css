@@ -12,9 +12,18 @@ body {
   max-width: 100%;
 }
 
+/* shadcn Select: react-remove-scroll hides scrollbar + shifts layout */
+html body[data-scroll-locked] {
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+  padding-right: 0 !important;
+  overflow: visible !important;
+}
+
 @theme inline {
-  --font-heading: var(--font-barlow-condensed);
-  --font-body: var(--font-barlow);
+  --font-heading: var(--font-oswald), system-ui, sans-serif;
+  --font-body: var(--font-barlow), system-ui, sans-serif;
+  --font-sans: var(--font-barlow), system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -102,10 +111,10 @@ body {
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: var(--font-barlow), system-ui, sans-serif;
+    @apply bg-background font-body text-foreground antialiased;
     background-color: #0a0e1a;
     min-height: 100vh;
+    line-height: 1.6;
   }
 
   h1,
@@ -114,12 +123,53 @@ body {
   h4,
   h5,
   h6 {
-    font-family: var(--font-barlow-condensed), system-ui, sans-serif;
-    letter-spacing: -0.02em;
+    @apply font-heading;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    font-weight: 600;
+  }
+
+  h1 {
+    letter-spacing: 0.03em;
+    font-weight: 700;
+  }
+
+  p,
+  li,
+  label,
+  input,
+  textarea,
+  select,
+  button {
+    @apply font-body;
   }
 }
 
 @layer utilities {
+  .font-heading {
+    font-family: var(--font-heading);
+  }
+
+  .font-body {
+    font-family: var(--font-body);
+  }
+
+  .text-eyebrow {
+    font-family: var(--font-body);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .text-display {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 0.95;
+    text-transform: uppercase;
+  }
+
   .glass {
     background: rgba(255, 255, 255, 0.04);
     backdrop-filter: blur(20px);

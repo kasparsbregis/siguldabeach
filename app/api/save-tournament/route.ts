@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveTournamentResults } from "@/lib/simple-db";
+import type { SavedTournamentGame } from "@/lib/tournament-types";
+
+function isValidGames(games: unknown): games is SavedTournamentGame[] {
+  if (!Array.isArray(games)) return false;
+
+  return games.every((game) => {
+    if (!game || typeof game !== "object") return false;
+    const row = game as SavedTournamentGame;
+    return (
+      typeof row.gameNumber === "number" &&
+      Array.isArray(row.team1) &&
+      row.team1.length === 2 &&
+      Array.isArray(row.team2) &&
+      row.team2.length === 2 &&
+      row.result &&
+      Array.isArray(row.result.sets) &&
+      typeof row.result.matchResult === "string" &&
+      (row.result.winningTeam === 1 || row.result.winningTeam === 2)
+    );
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const { playerNames, playerStats } = await request.json();
+    const { playerNames, playerStats, games } = await request.json();
 
     if (
       !playerNames ||
@@ -20,7 +41,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await saveTournamentResults(playerNames, playerStats);
+    const tournamentGames = isValidGames(games) ? games : [];
+
+    const result = await saveTournamentResults(
+      playerNames,
+      playerStats,
+      undefined,
+      tournamentGames
+    );
 
     return NextResponse.json({
       success: true,

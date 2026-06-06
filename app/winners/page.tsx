@@ -31,12 +31,17 @@ import {
   TrendingUp,
   Hash,
   Archive,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TournamentGameDetails } from "../components/tournament-game-details";
 import { cn } from "@/lib/utils";
+import type { TournamentGameRecord } from "@/lib/tournament-types";
 
 interface Tournament {
   id: number;
+  season_number: number;
   date: string;
   player1_name: string;
   player2_name: string;
@@ -117,6 +122,13 @@ export default function WinnersPage() {
     new Date().getFullYear()
   );
   const [loading, setLoading] = useState(true);
+  const [expandedTournamentId, setExpandedTournamentId] = useState<number | null>(
+    null
+  );
+  const [tournamentGamesCache, setTournamentGamesCache] = useState<
+    Record<number, TournamentGameRecord[]>
+  >({});
+  const [loadingGamesId, setLoadingGamesId] = useState<number | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -137,8 +149,36 @@ export default function WinnersPage() {
   }, []);
 
   useEffect(() => {
+    setExpandedTournamentId(null);
     fetchData(selectedYear);
   }, [selectedYear]);
+
+  const toggleTournamentDetails = async (tournamentId: number) => {
+    if (expandedTournamentId === tournamentId) {
+      setExpandedTournamentId(null);
+      return;
+    }
+
+    setExpandedTournamentId(tournamentId);
+
+    if (tournamentGamesCache[tournamentId]) return;
+
+    setLoadingGamesId(tournamentId);
+    try {
+      const response = await fetch(`/api/tournament/${tournamentId}`);
+      const data = await response.json();
+      if (data.success) {
+        setTournamentGamesCache((prev) => ({
+          ...prev,
+          [tournamentId]: data.games,
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching tournament games:", error);
+    } finally {
+      setLoadingGamesId(null);
+    }
+  };
 
   const fetchData = async (year: number) => {
     setLoading(true);
@@ -169,28 +209,26 @@ export default function WinnersPage() {
 
   return (
     <PageShell fullWidth>
-      <FadeIn className="mb-10">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 ring-1 ring-amber-500/20">
-            <Trophy className="h-6 w-6 text-amber-400" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold uppercase tracking-tight md:text-4xl">
-              <span className="text-gradient-neon">Uzvarētāji</span>
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {selectedYear === currentYear
-                ? "Aktīvās sezonas reitings un turnīru vēsture"
-                : `${selectedYear}. sezonas arhīvs`}
-            </p>
-          </div>
+      <FadeIn className="mb-10 flex flex-col items-center text-center">
+        <div className="mt-6 flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/25 md:size-16">
+          <Trophy className="size-7 text-amber-400 md:size-8" />
         </div>
+
+        <h1 className="font-heading mt-5 text-3xl font-bold uppercase tracking-tight md:text-4xl lg:text-[2.75rem]">
+          <span className="text-gradient-neon">Uzvarētāji</span>
+        </h1>
+
+        <p className="mt-3 max-w-lg text-base leading-relaxed text-muted-foreground md:text-lg">
+          {selectedYear === currentYear
+            ? "Aktīvās sezonas reitings, turnīru vēsture un spēļu arhīvs"
+            : `${selectedYear}. sezonas arhīvs — reitings un turnīru rezultāti`}
+        </p>
       </FadeIn>
 
       {seasonYears.length > 0 && (
         <FadeIn delay={0.05} className="mb-8">
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="text-eyebrow flex items-center gap-2 text-muted-foreground">
               <Archive className="size-3.5" />
               Sezonu arhīvs
             </div>
@@ -210,7 +248,7 @@ export default function WinnersPage() {
                       "cursor-pointer rounded-xl",
                       isActive
                         ? "font-semibold"
-                        : "bg-white/5 hover:bg-white/10"
+                        : "bg-white/5 hover:bg-white/10 hover:text-white"
                     )}
                   >
                     {year}
@@ -282,7 +320,7 @@ export default function WinnersPage() {
                           >
                             <span
                               className={cn(
-                                "font-[family-name:var(--font-barlow-condensed)] text-3xl font-bold",
+                                "font-heading text-3xl font-bold",
                                 config.text
                               )}
                             >
@@ -334,9 +372,9 @@ export default function WinnersPage() {
                           const ppt =
                             player.tournaments_played > 0
                               ? (
-                                  player.total_player_points /
-                                  player.tournaments_played
-                                ).toFixed(2)
+                                player.total_player_points /
+                                player.tournaments_played
+                              ).toFixed(2)
                               : "0.00";
                           const PlaceIcon = placeIcons[index] ?? Hash;
                           const isTop3 = index < 3;
@@ -354,11 +392,11 @@ export default function WinnersPage() {
                                     className={cn(
                                       "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold",
                                       index === 0 &&
-                                        "bg-amber-500/15 text-amber-400",
+                                      "bg-amber-500/15 text-amber-400",
                                       index === 1 &&
-                                        "bg-slate-400/15 text-slate-300",
+                                      "bg-slate-400/15 text-slate-300",
                                       index === 2 &&
-                                        "bg-orange-500/15 text-orange-400",
+                                      "bg-orange-500/15 text-orange-400",
                                       index > 2 && "bg-white/[0.04] text-muted-foreground"
                                     )}
                                   >
@@ -422,104 +460,143 @@ export default function WinnersPage() {
           ) : (
             <>
               <FadeIn>
-                <h2 className="text-xl font-bold uppercase tracking-tight">
+                <h2 className="font-heading text-xl font-bold uppercase tracking-tight">
                   {selectedYear}. sezonas turnīri
                 </h2>
               </FadeIn>
               <StaggerList className="space-y-4">
-                {tournaments.map((tournament) => (
-                  <StaggerItem key={tournament.id}>
-                    <Card className="overflow-hidden rounded-2xl border-white/[0.08]">
-                      <CardHeader className="border-b border-white/[0.06] bg-white/[0.02] py-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <CardTitle className="text-base">
-                            Turnīrs #{tournament.id}
-                          </CardTitle>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {formatDate(tournament.date)}
+                {tournaments.map((tournament) => {
+                  const isExpanded = expandedTournamentId === tournament.id;
+
+                  return (
+                    <StaggerItem key={tournament.id}>
+                      <Card className="overflow-hidden rounded-2xl border-white/[0.08]">
+                        <CardHeader className="border-b border-white/[0.06] bg-white/[0.02] py-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleTournamentDetails(tournament.id)}
+                              className="cursor-pointer text-left"
+                            >
+                              <CardTitle className="text-base transition-colors hover:text-cyan-300">
+                                Turnīrs #{tournament.season_number}
+                              </CardTitle>
+                            </button>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Calendar className="h-3.5 w-3.5" />
+                                {formatDate(tournament.date)}
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  toggleTournamentDetails(tournament.id)
+                                }
+                                className="cursor-pointer rounded-lg hover:text-white"
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <ChevronUp className="size-4" />
+                                    Paslēpt spēles
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="size-4" />
+                                    Skatīt spēles
+                                  </>
+                                )}
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
-                          <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                          <span>
-                            {tournament.player1_name}, {tournament.player2_name},{" "}
-                            {tournament.player3_name}, {tournament.player4_name}
-                          </span>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="hover:bg-transparent">
-                              <TableHead className="w-16">#</TableHead>
-                              <TableHead>Spēlētājs</TableHead>
-                              <TableHead className="text-center">GW</TableHead>
-                              <TableHead className="text-center">SW</TableHead>
-                              <TableHead className="text-center">Koef.</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {[
-                              {
-                                place: 1,
-                                name: tournament.first_place_player_name,
-                                gw: tournament.first_place_player_games_won,
-                                sw: tournament.first_place_player_sets_won,
-                                ratio: tournament.first_place_player_ratio,
-                              },
-                              {
-                                place: 2,
-                                name: tournament.second_place_player_name,
-                                gw: tournament.second_place_player_games_won,
-                                sw: tournament.second_place_player_sets_won,
-                                ratio: tournament.second_place_player_ratio,
-                              },
-                              {
-                                place: 3,
-                                name: tournament.third_place_player_name,
-                                gw: tournament.third_place_player_games_won,
-                                sw: tournament.third_place_player_sets_won,
-                                ratio: tournament.third_place_player_ratio,
-                              },
-                              {
-                                place: 4,
-                                name: tournament.fourth_place_player_name,
-                                gw: tournament.fourth_place_player_games_won,
-                                sw: tournament.fourth_place_player_sets_won,
-                                ratio: tournament.fourth_place_player_ratio,
-                              },
-                            ].map((row) => {
-                              const PlaceIcon = placeIcons[row.place - 1];
-                              return (
-                                <TableRow key={row.place}>
-                                  <TableCell>
-                                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                                      <PlaceIcon className="h-3.5 w-3.5" />
-                                      {row.place}
-                                    </span>
-                                  </TableCell>
-                                  <TableCell className="font-medium">
-                                    {row.name}
-                                  </TableCell>
-                                  <TableCell className="text-center text-muted-foreground">
-                                    {row.gw}
-                                  </TableCell>
-                                  <TableCell className="text-center text-muted-foreground">
-                                    {row.sw}
-                                  </TableCell>
-                                  <TableCell className="text-center font-medium text-cyan-400">
-                                    {parseFloat(row.ratio).toFixed(2)}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </CardContent>
-                    </Card>
-                  </StaggerItem>
-                ))}
+                          <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+                            <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>
+                              {tournament.player1_name}, {tournament.player2_name},{" "}
+                              {tournament.player3_name}, {tournament.player4_name}
+                            </span>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="hover:bg-transparent">
+                                <TableHead className="w-16">#</TableHead>
+                                <TableHead>Spēlētājs</TableHead>
+                                <TableHead className="text-center">GW</TableHead>
+                                <TableHead className="text-center">SW</TableHead>
+                                <TableHead className="text-center">Koef.</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {[
+                                {
+                                  place: 1,
+                                  name: tournament.first_place_player_name,
+                                  gw: tournament.first_place_player_games_won,
+                                  sw: tournament.first_place_player_sets_won,
+                                  ratio: tournament.first_place_player_ratio,
+                                },
+                                {
+                                  place: 2,
+                                  name: tournament.second_place_player_name,
+                                  gw: tournament.second_place_player_games_won,
+                                  sw: tournament.second_place_player_sets_won,
+                                  ratio: tournament.second_place_player_ratio,
+                                },
+                                {
+                                  place: 3,
+                                  name: tournament.third_place_player_name,
+                                  gw: tournament.third_place_player_games_won,
+                                  sw: tournament.third_place_player_sets_won,
+                                  ratio: tournament.third_place_player_ratio,
+                                },
+                                {
+                                  place: 4,
+                                  name: tournament.fourth_place_player_name,
+                                  gw: tournament.fourth_place_player_games_won,
+                                  sw: tournament.fourth_place_player_sets_won,
+                                  ratio: tournament.fourth_place_player_ratio,
+                                },
+                              ].map((row) => {
+                                const PlaceIcon = placeIcons[row.place - 1];
+                                return (
+                                  <TableRow key={row.place}>
+                                    <TableCell>
+                                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                                        <PlaceIcon className="h-3.5 w-3.5" />
+                                        {row.place}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="font-medium">
+                                      {row.name}
+                                    </TableCell>
+                                    <TableCell className="text-center text-muted-foreground">
+                                      {row.gw}
+                                    </TableCell>
+                                    <TableCell className="text-center text-muted-foreground">
+                                      {row.sw}
+                                    </TableCell>
+                                    <TableCell className="text-center font-medium text-cyan-400">
+                                      {parseFloat(row.ratio).toFixed(2)}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </CardContent>
+                        {isExpanded && (
+                          <TournamentGameDetails
+                            games={tournamentGamesCache[tournament.id] ?? null}
+                            loading={loadingGamesId === tournament.id}
+                          />
+                        )}
+                      </Card>
+                    </StaggerItem>
+                  );
+                })}
               </StaggerList>
             </>
           )}

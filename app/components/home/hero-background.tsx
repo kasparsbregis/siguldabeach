@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useMounted } from "@/lib/use-mounted";
 
 interface Blob {
   angle: number;
@@ -72,8 +73,10 @@ interface HeroBackgroundProps {
 }
 
 export function HeroBackground({ reduceMotion }: HeroBackgroundProps) {
+  const mounted = useMounted();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const useStaticBackground = mounted && !!reduceMotion;
 
   useEffect(() => {
     if (reduceMotion) return;
@@ -178,7 +181,7 @@ export function HeroBackground({ reduceMotion }: HeroBackgroundProps) {
       className="pointer-events-none absolute inset-0 overflow-hidden border-y border-border/20 bg-[#0a0e1a]"
       aria-hidden
     >
-      {reduceMotion ? (
+      {useStaticBackground ? (
         <div
           className="absolute inset-0"
           style={{

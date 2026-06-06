@@ -14,7 +14,7 @@ export default function PageShell({
   fullWidth = false,
 }: PageShellProps) {
   return (
-    <div className="relative flex min-h-screen flex-col overflow-x-hidden">
+    <div className="relative flex min-h-screen flex-col">
       <AnimatedBackground />
       <Navbar />
       <main

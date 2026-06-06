@@ -83,7 +83,7 @@ export function FeatureBento() {
           <Zap className="w-3 h-3" />
           Platformas iespējas
         </Badge>
-        <h2 className="text-3xl font-bold uppercase tracking-tight md:text-4xl">
+        <h2 className="font-heading text-3xl font-bold uppercase tracking-tight md:text-4xl">
           Viss <span className="text-gradient-neon">vienā</span> vietā
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-muted-foreground lg:mx-0">
